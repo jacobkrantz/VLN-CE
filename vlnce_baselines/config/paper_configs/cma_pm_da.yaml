@@ -1,0 +1,30 @@
+BASE_TASK_CONFIG_PATH: habitat_extensions/config/vlnce_task.yaml
+SIMULATOR_GPU_ID: 0
+TORCH_GPU_ID: 0
+NUM_PROCESSES: 1
+TENSORBOARD_DIR: data/tensorboard_dirs/cma_pm_da
+CHECKPOINT_FOLDER: data/checkpoints/cma_pm_da
+EVAL_CKPT_PATH_DIR: data/checkpoints/cma_pm_da
+
+EVAL:
+  USE_CKPT_CONFIG: False
+  SPLIT: val_unseen
+  EPISODE_COUNT: 50000
+
+DAGGER:
+  ITERATIONS: 10
+  EPOCHS: 4
+  UPDATE_SIZE: 5000
+  BATCH_SIZE: 5
+  P: 0.75
+  LMDB_FEATURES_DIR: data/trajectories_dirs/cma_pm_da/trajectories.lmdb
+
+MODEL:
+  INSTRUCTION_ENCODER:
+    bidirectional: True
+
+  CMA:
+    use: True
+
+  PROGRESS_MONITOR:
+    use: True

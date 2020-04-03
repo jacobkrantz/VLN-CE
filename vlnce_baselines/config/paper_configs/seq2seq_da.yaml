@@ -1,0 +1,20 @@
+BASE_TASK_CONFIG_PATH: habitat_extensions/config/vlnce_task.yaml
+SIMULATOR_GPU_ID: 0
+TORCH_GPU_ID: 0
+NUM_PROCESSES: 1
+TENSORBOARD_DIR: data/tensorboard_dirs/seq2seq_da
+CHECKPOINT_FOLDER: data/checkpoints/seq2seq_da
+EVAL_CKPT_PATH_DIR: data/checkpoints/seq2seq_da
+
+EVAL:
+  USE_CKPT_CONFIG: False
+  SPLIT: val_unseen
+  EPISODE_COUNT: 50000
+
+DAGGER:
+  ITERATIONS: 10
+  EPOCHS: 4
+  UPDATE_SIZE: 5000
+  BATCH_SIZE: 5
+  P: 0.75
+  LMDB_FEATURES_DIR: data/trajectories_dirs/seq2seq_da/trajectories.lmdb

@@ -1,0 +1,56 @@
+# Same as vlnce_task.yaml but with a dataset split that
+# contains both the training and EnvDrop episodes.
+
+ENVIRONMENT:
+  MAX_EPISODE_STEPS: 500
+SIMULATOR:
+  AGENT_0:
+    SENSORS: [RGB_SENSOR, DEPTH_SENSOR]
+  FORWARD_STEP_SIZE: 0.25
+  TURN_ANGLE: 15
+  HABITAT_SIM_V0:
+    GPU_DEVICE_ID: 0
+  RGB_SENSOR:
+    WIDTH: 224
+    HEIGHT: 224
+    HFOV: 90
+    TYPE: HabitatSimRGBSensor
+  DEPTH_SENSOR:
+    WIDTH: 256  # pretrained DDPPO resnet needs 256x256
+    HEIGHT: 256
+TASK:
+  TYPE: VLN-v0
+  SUCCESS_DISTANCE: 3.0
+  SENSORS: [
+    INSTRUCTION_SENSOR,
+    VLN_ORACLE_ACTION_SENSOR,
+    VLN_ORACLE_PROGRESS_SENSOR
+  ]
+  INSTRUCTION_SENSOR_UUID: instruction
+  POSSIBLE_ACTIONS: [STOP, MOVE_FORWARD, TURN_LEFT, TURN_RIGHT]
+  MEASUREMENTS: [
+    SPL,
+    NDTW,
+    PATH_LENGTH,
+    NAVIGATION_ERROR,
+    SUCCESS,
+    ORACLE_SUCCESS,
+    STEPS_TAKEN
+  ]
+  NDTW:
+    SUCCESS_DISTANCE: 3.0
+    GT_PATH: data/datasets/R2R_VLNCE_v1_preprocessed/{split}/{split}_gt.json.gz
+  SDTW:
+    SUCCESS_DISTANCE: 3.0
+    GT_PATH: data/datasets/R2R_VLNCE_v1_preprocessed/{split}/{split}_gt.json.gz
+  SPL:
+    SUCCESS_DISTANCE: 3.0
+  SUCCESS:
+    SUCCESS_DISTANCE: 3.0
+  ORACLE_SUCCESS:
+    SUCCESS_DISTANCE: 3.0
+DATASET:
+  TYPE: VLN-CE-v1
+  SPLIT: joint_train_aug
+  DATA_PATH: data/datasets/R2R_VLNCE_v1_preprocessed/{split}/{split}.json.gz
+  SCENES_DIR: data/scene_datasets/

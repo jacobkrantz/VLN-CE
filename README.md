@@ -107,7 +107,7 @@ For both teacher forcing and DAgger training, experience is collected in simulat
 DAGGER:
   LR: 2.5e-4  # learning rate
   ITERATIONS: 1  # set to 1 for teacher forcing
-  EPOCHS: 12
+  EPOCHS: 15
   UPDATE_SIZE: 10819  # total number of training episodes
   BATCH_SIZE: 5  # number of complete episodes in a batch
   P: 1.0  # Must be 1.0 for teacher forcing
@@ -162,7 +162,7 @@ Note that the simulator and torch code do not need to run on the same card. For 
 | CMA_PM             | 0.26         | 0.19           | [cma_pm.yaml](vlnce_baselines/config/paper_configs/cma_pm.yaml)                                                                                                                          |
 | CMA_DA             | 0.31         | 0.25           | [cma_da.yaml](vlnce_baselines/config/paper_configs/cma_da.yaml)                                                                                                                          |
 | CMA_Aug            | 0.24         | 0.19           | [cma_aug.yaml](vlnce_baselines/config/paper_configs/cma_aug.yaml)  ⟶ [cma_aug_tune.yaml](vlnce_baselines/config/paper_configs/cma_aug_tune.yaml)                                         |
-| **CMA_PM_DA_Aug**  | **0.35**     | **0.30**       | [cma_pm_da_aug.yaml](vlnce_baselines/config/paper_configs/cma_pm_da_aug.yaml)  ⟶ [cma_pm_da_aug_tune.yaml](vlnce_baselines/config/paper_configs/cma_pm_da_aug_tune.yaml)                 |
+| **CMA_PM_DA_Aug**  | **0.35**     | **0.30**       | [cma_pm_aug.yaml](vlnce_baselines/config/paper_configs/cma_pm_aug.yaml)  ⟶ [cma_pm_da_aug_tune.yaml](vlnce_baselines/config/paper_configs/cma_pm_da_aug_tune.yaml)                 |
 | CMA_PM_Aug         | 0.25         | 0.22           | [cma_pm_aug.yaml](vlnce_baselines/config/paper_configs/cma_pm_aug.yaml)  ⟶ [cma_pm_aug_tune.yaml](vlnce_baselines/config/paper_configs/cma_pm_aug_tune.yaml)                             |
 | CMA_DA_Aug         | 0.33         | 0.26           | [cma_aug.yaml](vlnce_baselines/config/paper_configs/cma_aug.yaml)  ⟶ [cma_da_aug_tune.yaml](vlnce_baselines/config/paper_configs/cma_da_aug_tune.yaml)                             |
 

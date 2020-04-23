@@ -16,7 +16,7 @@ DAGGER:
   EPOCHS: 4
   UPDATE_SIZE: 5000
   BATCH_SIZE: 5
-  P: 0.75
+  P: 0.5
   PRELOAD_LMDB_FEATURES: False
   LMDB_FEATURES_DIR: data/trajectories_dirs/cma_pm_da_aug_tune/trajectories.lmdb
   LOAD_FROM_CKPT: True

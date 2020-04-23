@@ -97,9 +97,7 @@ _C.MODEL.DEPTH_ENCODER.output_size = 128
 # type of resnet to use
 _C.MODEL.DEPTH_ENCODER.backbone = "resnet50"
 # path to DDPPO resnet weights
-_C.MODEL.DEPTH_ENCODER.ddppo_checkpoint = (
-    "data/ddppo-models/gibson-2plus-resnet50.pth"
-)
+_C.MODEL.DEPTH_ENCODER.ddppo_checkpoint = "data/ddppo-models/gibson-2plus-resnet50.pth"
 
 _C.MODEL.STATE_ENCODER = CN()
 _C.MODEL.STATE_ENCODER.hidden_size = 512

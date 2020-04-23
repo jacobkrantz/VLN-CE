@@ -615,7 +615,9 @@ class DaggerTrainer(BaseRLTrainer):
             for dagger_it in range(self.config.DAGGER.ITERATIONS):
                 step_id = 0
                 if not self.config.DAGGER.PRELOAD_LMDB_FEATURES:
-                    self._update_dataset(dagger_it)
+                    self._update_dataset(
+                        dagger_it + (1 if self.config.DAGGER.LOAD_FROM_CKPT else 0)
+                    )
 
                 if torch.cuda.is_available():
                     with torch.cuda.device(self.device):

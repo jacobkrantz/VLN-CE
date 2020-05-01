@@ -1,7 +1,7 @@
 # Beyond the Nav-Graph: Vision-and-Language Navigation in Continuous Environments
 
 This repository is the official implementation of [Beyond the Nav-Graph: Vision-and-Language Navigation in Continuous Environments](https://arxiv.org/abs/2004.02857).
-[[project website](https://jacobkrantz.github.io/VLN-CE-website/)]
+[[project website](https://jacobkrantz.github.io/vlnce/)]
 
 Vision and Language Navigation in Continuous Environments (VLN-CE) is an instruction-guided navigation task with crowdsourced instructions, realistic environments, and unconstrained agent navigation. This repo is a launching point for interacting with the VLN-CE task and provides a wide array of baseline agents including a Seq2Seq model and a Cross-Modal Attention model. Models can be trained via two imitation learning methods: teacher forcing (behavior cloning) and DAgger. VLN-CE is implemented on top of the Habitat platform.
 
@@ -57,7 +57,7 @@ python download_mp.py --task habitat -o data/scene_datasets/mp3d/
 Extract this data to `data/scene_datasets/mp3d` such that it has the form `data/scene_datasets/mp3d/{scene}/{scene}.glb`. There should be 90 total scenes.
 
 #### Dataset
-The R2R_VLNCE dataset is a port of the Room-to-Room (R2R) dataset created by [Anderson et al](http://openaccess.thecvf.com/content_cvpr_2018/papers/Anderson_Vision-and-Language_Navigation_Interpreting_CVPR_2018_paper.pdf) for use with the [Matterport3DSimulator](https://github.com/peteanderson80/Matterport3DSimulator) (MP3D-Sim). For details on the porting process from MP3D-Sim to the continuous reconstructions used in Habitat, please see our [paper](https://arxiv.org/abs/2004.02857). We provide two versions of the dataset, `R2R_VLNCE_v1` and `R2R_VLNCE_v1_preprocessed`. `R2R_VLNCE_v1` contains the `train`, `val_seen`, and `val_unseen` splits. `R2R_VLNCE_v1_preprocessed` runs with our models out of the box. It includes instruction tokens mapped to GloVe embeddings, ground truth trajectories, and a data augmentation split (`envdrop`) that is ported from [R2R-EnvDrop](https://github.com/airsplay/R2R-EnvDrop). For more details on the dataset contents and format, see our [project page](https://jacobkrantz.github.io/VLN-CE-website/data).
+The R2R_VLNCE dataset is a port of the Room-to-Room (R2R) dataset created by [Anderson et al](http://openaccess.thecvf.com/content_cvpr_2018/papers/Anderson_Vision-and-Language_Navigation_Interpreting_CVPR_2018_paper.pdf) for use with the [Matterport3DSimulator](https://github.com/peteanderson80/Matterport3DSimulator) (MP3D-Sim). For details on the porting process from MP3D-Sim to the continuous reconstructions used in Habitat, please see our [paper](https://arxiv.org/abs/2004.02857). We provide two versions of the dataset, `R2R_VLNCE_v1` and `R2R_VLNCE_v1_preprocessed`. `R2R_VLNCE_v1` contains the `train`, `val_seen`, and `val_unseen` splits. `R2R_VLNCE_v1_preprocessed` runs with our models out of the box. It includes instruction tokens mapped to GloVe embeddings, ground truth trajectories, and a data augmentation split (`envdrop`) that is ported from [R2R-EnvDrop](https://github.com/airsplay/R2R-EnvDrop). For more details on the dataset contents and format, see our [project page](https://jacobkrantz.github.io/vlnce/data).
 
 | Dataset 	| Extract path               	| Size  	|
 |--------------	|----------------------------	|-------	|

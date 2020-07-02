@@ -36,10 +36,10 @@ TASK:
   ]
   NDTW:
     SUCCESS_DISTANCE: 3.0
-    GT_PATH: data/datasets/R2R_VLNCE_v1_preprocessed/{split}/{split}_gt.json.gz
+    GT_PATH: data/datasets/R2R_VLNCE_v1-1_preprocessed/{split}/{split}_gt.json.gz
   SDTW:
     SUCCESS_DISTANCE: 3.0
-    GT_PATH: data/datasets/R2R_VLNCE_v1_preprocessed/{split}/{split}_gt.json.gz
+    GT_PATH: data/datasets/R2R_VLNCE_v1-1_preprocessed/{split}/{split}_gt.json.gz
   SPL:
     SUCCESS_DISTANCE: 3.0
   SUCCESS:
@@ -49,5 +49,5 @@ TASK:
 DATASET:
   TYPE: VLN-CE-v1
   SPLIT: train
-  DATA_PATH: data/datasets/R2R_VLNCE_v1_preprocessed/{split}/{split}.json.gz
+  DATA_PATH: data/datasets/R2R_VLNCE_v1-1_preprocessed/{split}/{split}.json.gz
   SCENES_DIR: data/scene_datasets/

@@ -57,27 +57,27 @@ python download_mp.py --task habitat -o data/scene_datasets/mp3d/
 Extract this data to `data/scene_datasets/mp3d` such that it has the form `data/scene_datasets/mp3d/{scene}/{scene}.glb`. There should be 90 total scenes.
 
 #### Dataset
-The R2R_VLNCE dataset is a port of the Room-to-Room (R2R) dataset created by [Anderson et al](http://openaccess.thecvf.com/content_cvpr_2018/papers/Anderson_Vision-and-Language_Navigation_Interpreting_CVPR_2018_paper.pdf) for use with the [Matterport3DSimulator](https://github.com/peteanderson80/Matterport3DSimulator) (MP3D-Sim). For details on the porting process from MP3D-Sim to the continuous reconstructions used in Habitat, please see our [paper](https://arxiv.org/abs/2004.02857). We provide two versions of the dataset, `R2R_VLNCE_v1` and `R2R_VLNCE_v1_preprocessed`. `R2R_VLNCE_v1` contains the `train`, `val_seen`, and `val_unseen` splits. `R2R_VLNCE_v1_preprocessed` runs with our models out of the box. It includes instruction tokens mapped to GloVe embeddings, ground truth trajectories, and a data augmentation split (`envdrop`) that is ported from [R2R-EnvDrop](https://github.com/airsplay/R2R-EnvDrop). For more details on the dataset contents and format, see our [project page](https://jacobkrantz.github.io/vlnce/data).
+The R2R_VLNCE dataset is a port of the Room-to-Room (R2R) dataset created by [Anderson et al](http://openaccess.thecvf.com/content_cvpr_2018/papers/Anderson_Vision-and-Language_Navigation_Interpreting_CVPR_2018_paper.pdf) for use with the [Matterport3DSimulator](https://github.com/peteanderson80/Matterport3DSimulator) (MP3D-Sim). For details on the porting process from MP3D-Sim to the continuous reconstructions used in Habitat, please see our [paper](https://arxiv.org/abs/2004.02857). We provide two versions of the dataset, `R2R_VLNCE_v1-1` and `R2R_VLNCE_v1-1_preprocessed`. `R2R_VLNCE_v1-1` contains the `train`, `val_seen`, and `val_unseen` splits. `R2R_VLNCE_v1-1_preprocessed` runs with our models out of the box. It includes instruction tokens mapped to GloVe embeddings, ground truth trajectories, and a data augmentation split (`envdrop`) that is ported from [R2R-EnvDrop](https://github.com/airsplay/R2R-EnvDrop). For more details on the dataset contents and format, see our [project page](https://jacobkrantz.github.io/vlnce/data).
 
 | Dataset 	| Extract path               	| Size  	|
 |--------------	|----------------------------	|-------	|
-| [R2R_VLNCE_v1.zip](https://drive.google.com/file/d/1k9LLJGeDGLIO2wxtWhzjGHhvQ2t2aJBQ/view) 	| `data/datasets/R2R_VLNCE_v1`          	| 3 MB 	|
-| [R2R_VLNCE_v1_preprocessed.zip](https://drive.google.com/file/d/1IDM4eEMTJDKN6-mGTSmqSkv620hCd_TX/view)  	| `data/datasets/R2R_VLNCE_v1_preprocessed` 	| 344 MB 	|
+| [R2R_VLNCE_v1-1.zip](https://drive.google.com/file/d/1r6tsahJYctvWefcyFKfsQXUA2Khj4qvR/view) 	| `data/datasets/R2R_VLNCE_v1-1`          	| 3 MB 	|
+| [R2R_VLNCE_v1-1_preprocessed.zip](https://drive.google.com/file/d/1jNEDBiv7SnsBpXLLt7nstYpS_mg71KTV/view)  	| `data/datasets/R2R_VLNCE_v1-1_preprocessed` 	| 344 MB 	|
 
 Downloading the dataset:
 ```bash
 python -m pip install gdown
 cd data/datasets
 
-# R2R_VLNCE_v1
-gdown https://drive.google.com/uc?id=1k9LLJGeDGLIO2wxtWhzjGHhvQ2t2aJBQ
-unzip R2R_VLNCE_v1.zip
-rm R2R_VLNCE_v1.zip
+# R2R_VLNCE_v1-1
+gdown https://drive.google.com/uc?id=1r6tsahJYctvWefcyFKfsQXUA2Khj4qvR
+unzip R2R_VLNCE_v1-1.zip
+rm R2R_VLNCE_v1-1.zip
 
-# R2R_VLNCE_v1_preprocessed
-gdown https://drive.google.com/uc?id=1IDM4eEMTJDKN6-mGTSmqSkv620hCd_TX
-unzip R2R_VLNCE_v1_preprocessed.zip
-rm R2R_VLNCE_v1_preprocessed.zip
+# R2R_VLNCE_v1-1_preprocessed
+gdown https://drive.google.com/uc?id=1jNEDBiv7SnsBpXLLt7nstYpS_mg71KTV
+unzip R2R_VLNCE_v1-1_preprocessed.zip
+rm R2R_VLNCE_v1-1_preprocessed.zip
 ```
 
 #### Encoder Weights

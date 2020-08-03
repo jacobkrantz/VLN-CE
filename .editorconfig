@@ -19,4 +19,4 @@ force_grid_wrap = false
 include_trailing_comma = true
 ensure_newline_before_comments=true
 use_parentheses = true
-known_third_party = attr,dtw,fastdtw,gym,habitat,habitat_baselines,lmdb,msgpack_numpy,numpy,torch,torchvision,tqdm,yacs
+known_third_party = attr,dtw,fastdtw,gym,habitat,habitat_baselines,lmdb,msgpack_numpy,numpy,torch,torchvision,tqdm

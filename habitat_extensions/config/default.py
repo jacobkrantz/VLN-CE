@@ -1,7 +1,7 @@
 from typing import List, Optional, Union
 
-from habitat.config.default import Config, get_config
-from yacs.config import CfgNode as CN
+from habitat.config.default import Config as CN
+from habitat.config.default import get_config
 
 _C = get_config()
 _C.defrost()
@@ -9,31 +9,31 @@ _C.defrost()
 # -----------------------------------------------------------------------------
 # GPS SENSOR
 # -----------------------------------------------------------------------------
-_C.TASK.GLOBAL_GPS_SENSOR = Config()
+_C.TASK.GLOBAL_GPS_SENSOR = CN()
 _C.TASK.GLOBAL_GPS_SENSOR.TYPE = "GlobalGPSSensor"
 _C.TASK.GLOBAL_GPS_SENSOR.DIMENSIONALITY = 3
 # -----------------------------------------------------------------------------
 # ORACLE ACTION SENSOR
 # -----------------------------------------------------------------------------
-_C.TASK.ORACLE_ACTION_SENSOR = Config()
+_C.TASK.ORACLE_ACTION_SENSOR = CN()
 _C.TASK.ORACLE_ACTION_SENSOR.TYPE = "OracleActionSensor"
 _C.TASK.ORACLE_ACTION_SENSOR.GOAL_RADIUS = 0.5
 # -----------------------------------------------------------------------------
 # VLN ORACLE ACTION SENSOR
 # -----------------------------------------------------------------------------
-_C.TASK.VLN_ORACLE_ACTION_SENSOR = Config()
+_C.TASK.VLN_ORACLE_ACTION_SENSOR = CN()
 _C.TASK.VLN_ORACLE_ACTION_SENSOR.TYPE = "VLNOracleActionSensor"
 _C.TASK.VLN_ORACLE_ACTION_SENSOR.GOAL_RADIUS = 0.5
 # -----------------------------------------------------------------------------
 # VLN ORACLE PROGRESS SENSOR
 # -----------------------------------------------------------------------------
-_C.TASK.VLN_ORACLE_PROGRESS_SENSOR = Config()
+_C.TASK.VLN_ORACLE_PROGRESS_SENSOR = CN()
 _C.TASK.VLN_ORACLE_PROGRESS_SENSOR.TYPE = "VLNOracleProgressSensor"
 
 # -----------------------------------------------------------------------------
 # NDTW MEASUREMENT
 # -----------------------------------------------------------------------------
-_C.TASK.NDTW = Config()
+_C.TASK.NDTW = CN()
 _C.TASK.NDTW.TYPE = "NDTW"
 _C.TASK.NDTW.SPLIT = "val_seen"
 _C.TASK.NDTW.FDTW = True  # False: DTW
@@ -44,7 +44,7 @@ _C.TASK.NDTW.SUCCESS_DISTANCE = 0.2
 # -----------------------------------------------------------------------------
 # SDTW MEASUREMENT
 # -----------------------------------------------------------------------------
-_C.TASK.SDTW = Config()
+_C.TASK.SDTW = CN()
 _C.TASK.SDTW.TYPE = "SDTW"
 _C.TASK.SDTW.SPLIT = "val_seen"
 _C.TASK.SDTW.FDTW = True  # False: DTW
@@ -55,40 +55,29 @@ _C.TASK.SDTW.SUCCESS_DISTANCE = 0.2
 # -----------------------------------------------------------------------------
 # PATH_LENGTH MEASUREMENT
 # -----------------------------------------------------------------------------
-_C.TASK.PATH_LENGTH = Config()
+_C.TASK.PATH_LENGTH = CN()
 _C.TASK.PATH_LENGTH.TYPE = "PathLength"
-# -----------------------------------------------------------------------------
-# NAVIGATION_ERROR MEASUREMENT
-# -----------------------------------------------------------------------------
-_C.TASK.NAVIGATION_ERROR = Config()
-_C.TASK.NAVIGATION_ERROR.TYPE = "NavigationError"
 # -----------------------------------------------------------------------------
 # ORACLE_NAVIGATION_ERROR MEASUREMENT
 # -----------------------------------------------------------------------------
-_C.TASK.ORACLE_NAVIGATION_ERROR = Config()
+_C.TASK.ORACLE_NAVIGATION_ERROR = CN()
 _C.TASK.ORACLE_NAVIGATION_ERROR.TYPE = "OracleNavigationError"
-# -----------------------------------------------------------------------------
-# SUCCESS MEASUREMENT
-# -----------------------------------------------------------------------------
-_C.TASK.SUCCESS = Config()
-_C.TASK.SUCCESS.TYPE = "Success"
-_C.TASK.SUCCESS.SUCCESS_DISTANCE = 0.2
 # -----------------------------------------------------------------------------
 # ORACLE_SUCCESS MEASUREMENT
 # -----------------------------------------------------------------------------
-_C.TASK.ORACLE_SUCCESS = Config()
+_C.TASK.ORACLE_SUCCESS = CN()
 _C.TASK.ORACLE_SUCCESS.TYPE = "OracleSuccess"
 _C.TASK.ORACLE_SUCCESS.SUCCESS_DISTANCE = 0.2
 # -----------------------------------------------------------------------------
 # ORACLE_SPL MEASUREMENT
 # -----------------------------------------------------------------------------
-_C.TASK.ORACLE_SPL = Config()
+_C.TASK.ORACLE_SPL = CN()
 _C.TASK.ORACLE_SPL.TYPE = "OracleSPL"
 _C.TASK.ORACLE_SPL.SUCCESS_DISTANCE = 0.2
 # -----------------------------------------------------------------------------
 # STEPS_TAKEN MEASUREMENT
 # -----------------------------------------------------------------------------
-_C.TASK.STEPS_TAKEN = Config()
+_C.TASK.STEPS_TAKEN = CN()
 _C.TASK.STEPS_TAKEN.TYPE = "StepsTaken"
 
 

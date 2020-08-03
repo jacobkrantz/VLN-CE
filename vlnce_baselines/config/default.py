@@ -1,6 +1,6 @@
 from typing import List, Optional, Union
 
-from yacs.config import CfgNode as CN
+from habitat.config.default import Config as CN
 
 from habitat_extensions.config.default import get_extended_config as get_task_config
 

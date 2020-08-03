@@ -60,37 +60,6 @@ class PathLength(Measure):
 
 
 @registry.register_measure
-class NavigationError(Measure):
-    r"""Navigation Error (NE)
-
-    NE = geosdesic_distance(agent_path_end, goal)
-
-    This computes navigation error for every update regardless of whether or
-    not the end of the episode has been reached. Thus, this measure is a
-    distance to goal measure.
-    """
-
-    def __init__(self, *args: Any, sim: Simulator, config: Config, **kwargs: Any):
-        self._sim = sim
-        self._config = config
-        super().__init__()
-
-    def reset_metric(self, *args: Any, episode, **kwargs: Any):
-        self._metric = None
-
-    def update_metric(self, *args: Any, episode, action, **kwargs: Any):
-        current_position = self._sim.get_agent_state().position.tolist()
-        distance_to_target = self._sim.geodesic_distance(
-            current_position, episode.goals[0].position
-        )
-        self._metric = distance_to_target
-
-    @staticmethod
-    def _get_uuid(*args: Any, **kwargs: Any):
-        return "navigation_error"
-
-
-@registry.register_measure
 class OracleNavigationError(Measure):
     r"""Oracle Navigation Error (ONE)
 
@@ -120,41 +89,6 @@ class OracleNavigationError(Measure):
     @staticmethod
     def _get_uuid(*args: Any, **kwargs: Any):
         return "oracle_navigation_error"
-
-
-@registry.register_measure
-class Success(Measure):
-    r"""Success Rate (SR)
-
-    SR = I(NE <= goal_radius),
-    where NE is Navigation Error.
-    """
-
-    def __init__(self, *args: Any, sim: Simulator, config: Config, **kwargs: Any):
-        self._sim = sim
-        self._config = config
-        super().__init__()
-
-    def reset_metric(self, *args: Any, episode, **kwargs: Any):
-        self._metric = 0
-
-    def update_metric(
-        self, *args: Any, episode, action, task: EmbodiedTask, **kwargs: Any
-    ):
-        current_position = self._sim.get_agent_state().position.tolist()
-        distance_to_target = self._sim.geodesic_distance(
-            current_position, episode.goals[0].position
-        )
-
-        self._metric = (
-            hasattr(task, "is_stop_called")
-            and task.is_stop_called
-            and distance_to_target < self._config.SUCCESS_DISTANCE
-        )
-
-    @staticmethod
-    def _get_uuid(*args: Any, **kwargs: Any):
-        return "success"
 
 
 @registry.register_measure

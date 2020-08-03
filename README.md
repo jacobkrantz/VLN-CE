@@ -19,14 +19,14 @@ conda activate vlnce
 
 ### Habitat and Other Dependencies
 
-VLN-CE makes extensive use of the Habitat Simulator and API developed by FAIR. You will first need to install both [Habitat-Sim](https://github.com/facebookresearch/habitat-sim) and [Habitat-API](https://github.com/facebookresearch/habitat-api/tree/v0.1.4). If you are using conda, Habitat-Sim can easily be installed with:
+VLN-CE makes extensive use of the Habitat Simulator and API developed by FAIR. You will first need to install both [Habitat-Sim](https://github.com/facebookresearch/habitat-sim) and [Habitat-API](https://github.com/facebookresearch/habitat-api/tree/v0.1.5). If you are using conda, Habitat-Sim can easily be installed with:
 ```bash
 conda install -c aihabitat -c conda-forge habitat-sim headless
 ```
-Otherwise, follow the Habitat-Sim [installation instructions](https://github.com/facebookresearch/habitat-sim#installation). Then install Habitat-API version `0.1.4`:
+Otherwise, follow the Habitat-Sim [installation instructions](https://github.com/facebookresearch/habitat-sim#installation). Then install Habitat-API version `0.1.5`:
 
 ```bash
-git clone --branch v0.1.4 git@github.com:facebookresearch/habitat-api.git
+git clone --branch v0.1.5 git@github.com:facebookresearch/habitat-api.git
 cd habitat-api
 # installs both habitat and habitat_baselines
 python -m pip install -r requirements.txt
@@ -34,7 +34,7 @@ python -m pip install -r habitat_baselines/rl/requirements.txt
 python -m pip install -r habitat_baselines/rl/ddppo/requirements.txt
 python setup.py develop --all
 ```
-We recommend downloading the test scenes and running the example script as described [here](https://github.com/facebookresearch/habitat-api/blob/v0.1.4/README.md#installation) to ensure the installation of Habitat-Sim and Habitat-API was successful. Now you can clone this repository and install the rest of the dependencies:
+We recommend downloading the test scenes and running the example script as described [here](https://github.com/facebookresearch/habitat-api/blob/v0.1.5/README.md#installation) to ensure the installation of Habitat-Sim and Habitat-API was successful. Now you can clone this repository and install the rest of the dependencies:
 ```bash
 git clone git@github.com:jacobkrantz/VLN-CE.git
 cd VLN-CE

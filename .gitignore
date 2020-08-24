@@ -125,14 +125,14 @@ venv.bak/
 .dmypy.json
 dmypy.json
 
+# VSCode
+.vscode
+
 # Pyre type checker
 .pyre/
 
 # exclude data from source control by default
 data
-
-# TensorBoard
-tensorboard_dirs
 
 # Generated videos
 videos

@@ -3,6 +3,7 @@ from typing import Dict
 import numpy as np
 from habitat.core.utils import try_cv2_import
 from habitat.utils.visualizations import maps
+from habitat.utils.visualizations.utils import draw_collision
 
 cv2 = try_cv2_import()
 

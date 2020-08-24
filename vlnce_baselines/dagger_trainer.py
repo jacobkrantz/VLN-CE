@@ -189,10 +189,10 @@ class IWTrajectoryDataset(torch.utils.data.IterableDataset):
         obs, prev_actions, oracle_actions = self._load_next()
 
         for k, v in obs.items():
-            obs[k] = torch.from_numpy(v)
+            obs[k] = torch.from_numpy(np.copy(v))
 
-        prev_actions = torch.from_numpy(prev_actions)
-        oracle_actions = torch.from_numpy(oracle_actions)
+        prev_actions = torch.from_numpy(np.copy(prev_actions))
+        oracle_actions = torch.from_numpy(np.copy(oracle_actions))
 
         inflections = torch.cat(
             [
@@ -872,10 +872,9 @@ class DaggerTrainer(BaseRLTrainer):
                         images=rgb_frames[i],
                         episode_id=current_episodes[i].episode_id,
                         checkpoint_idx=checkpoint_index,
-                        metric_name="SPL",
-                        metric_value=round(
-                            stats_episodes[current_episodes[i].episode_id]["spl"], 6
-                        ),
+                        metrics={
+                            "spl": stats_episodes[current_episodes[i].episode_id]["spl"]
+                        },
                         tb_writer=writer,
                     )
 

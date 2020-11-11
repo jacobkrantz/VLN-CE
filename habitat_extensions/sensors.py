@@ -8,6 +8,8 @@ from habitat.core.simulator import Sensor, SensorTypes, Simulator
 from habitat.sims.habitat_simulator.actions import HabitatSimActions
 from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
 
+from habitat_extensions.shortest_path_follower import ShortestPathFollowerCompat
+
 
 @registry.register_sensor(name="GlobalGPSSensor")
 class GlobalGPSSensor(Sensor):
@@ -58,15 +60,17 @@ class VLNOracleActionSensor(Sensor):
     """
 
     def __init__(self, sim: Simulator, config: Config, *args: Any, **kwargs: Any):
-        self._sim = sim
         super().__init__(config=config)
-        self.follower = ShortestPathFollower(
-            self._sim,
-            # all goals can be navigated to within 0.5m.
-            goal_radius=getattr(config, "GOAL_RADIUS", 0.5),
-            return_one_hot=False,
-        )
-        self.follower.mode = "geodesic_path"
+
+        # all goals can be navigated to within 0.5m.
+        goal_radius = getattr(config, "GOAL_RADIUS", 0.5)
+        if config.USE_ORIGINAL_FOLLOWER:
+            self.follower = ShortestPathFollowerCompat(
+                sim, goal_radius, return_one_hot=False
+            )
+            self.follower.mode = "geodesic_path"
+        else:
+            self.follower = ShortestPathFollower(sim, goal_radius, return_one_hot=False)
 
     def _get_uuid(self, *args: Any, **kwargs: Any):
         return "vln_oracle_action_sensor"

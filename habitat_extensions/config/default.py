@@ -13,17 +13,14 @@ _C.TASK.GLOBAL_GPS_SENSOR = CN()
 _C.TASK.GLOBAL_GPS_SENSOR.TYPE = "GlobalGPSSensor"
 _C.TASK.GLOBAL_GPS_SENSOR.DIMENSIONALITY = 3
 # -----------------------------------------------------------------------------
-# ORACLE ACTION SENSOR
-# -----------------------------------------------------------------------------
-_C.TASK.ORACLE_ACTION_SENSOR = CN()
-_C.TASK.ORACLE_ACTION_SENSOR.TYPE = "OracleActionSensor"
-_C.TASK.ORACLE_ACTION_SENSOR.GOAL_RADIUS = 0.5
-# -----------------------------------------------------------------------------
 # VLN ORACLE ACTION SENSOR
 # -----------------------------------------------------------------------------
 _C.TASK.VLN_ORACLE_ACTION_SENSOR = CN()
 _C.TASK.VLN_ORACLE_ACTION_SENSOR.TYPE = "VLNOracleActionSensor"
 _C.TASK.VLN_ORACLE_ACTION_SENSOR.GOAL_RADIUS = 0.5
+# compatibility with the dataset generation oracle and paper results.
+# if False, use the ShortestPathFollower in Habitat
+_C.TASK.VLN_ORACLE_ACTION_SENSOR.USE_ORIGINAL_FOLLOWER = True
 # -----------------------------------------------------------------------------
 # VLN ORACLE PROGRESS SENSOR
 # -----------------------------------------------------------------------------

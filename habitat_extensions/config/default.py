@@ -55,6 +55,17 @@ _C.TASK.SDTW.SUCCESS_DISTANCE = 0.2
 _C.TASK.PATH_LENGTH = CN()
 _C.TASK.PATH_LENGTH.TYPE = "PathLength"
 # -----------------------------------------------------------------------------
+# SUCCESS MEASUREMENT
+# -----------------------------------------------------------------------------
+_C.TASK.SUCCESS = CN()
+_C.TASK.SUCCESS.TYPE = "Success"
+_C.TASK.SUCCESS.SUCCESS_DISTANCE = 3.0
+# -----------------------------------------------------------------------------
+# SUCCESS MEASUREMENT
+# -----------------------------------------------------------------------------
+_C.TASK.NAVIGATION_ERROR = CN()
+_C.TASK.NAVIGATION_ERROR.TYPE = "NavigationError"
+# -----------------------------------------------------------------------------
 # ORACLE_NAVIGATION_ERROR MEASUREMENT
 # -----------------------------------------------------------------------------
 _C.TASK.ORACLE_NAVIGATION_ERROR = CN()

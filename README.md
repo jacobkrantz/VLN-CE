@@ -20,17 +20,20 @@ conda activate vlnce
 
 ### Habitat and Other Dependencies
 
-VLN-CE makes extensive use of the Habitat Simulator and Habitat-Lab developed by FAIR. You will first need to install both [Habitat-Sim](https://github.com/facebookresearch/habitat-sim) and [Habitat-Lab](https://github.com/facebookresearch/habitat-lab/tree/v0.1.5). If you are using conda, Habitat-Sim can easily be installed with:
+VLN-CE makes extensive use of the Habitat Simulator and Habitat-Lab developed by FAIR. You will first need to install a specific version of both [Habitat-Sim](https://github.com/facebookresearch/habitat-sim) and [Habitat-Lab](https://github.com/facebookresearch/habitat-lab). Habitat-Sim should be installed from source following the [installation instructions](https://github.com/facebookresearch/habitat-sim/tree/ff62b6dddcee04a6f5a065e4ae2d093b37f95744#quick-installation), but it is important to clone the repository to this specfic commit:
 
 ```bash
-conda install -c aihabitat -c conda-forge habitat-sim headless
+git clone https://github.com/facebookresearch/habitat-sim.git
+cd habitat-sim
+git checkout ff62b6dddcee04a6f5a065e4ae2d093b37f95744
 ```
 
-Otherwise, follow the Habitat-Sim [installation instructions](https://github.com/facebookresearch/habitat-sim#installation). Then install Habitat-Lab version `0.1.5`:
+Then this version of Habitat-Lab should be installed:
 
 ```bash
-git clone --branch v0.1.5 git@github.com:facebookresearch/habitat-lab.git
+git clone git@github.com:facebookresearch/habitat-lab.git
 cd habitat-lab
+git checkout 85b7907e8f4c7aa3904e6f9da6cf2aabcdcff742
 # installs both habitat and habitat_baselines
 python -m pip install -r requirements.txt
 python -m pip install -r habitat_baselines/rl/requirements.txt

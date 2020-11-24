@@ -29,7 +29,6 @@ class VlnResnetDepthEncoder(nn.Module):
             ngroups=resnet_baseplanes // 2,
             make_backbone=getattr(resnet, backbone),
             normalize_visual_inputs=normalize_visual_inputs,
-            obs_transform=None,
         )
 
         for param in self.visual_encoder.parameters():

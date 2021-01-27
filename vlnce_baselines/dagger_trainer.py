@@ -1,9 +1,7 @@
-import copy
 import gc
 import json
 import os
 import random
-import time
 import warnings
 from collections import defaultdict
 from typing import Dict
@@ -367,6 +365,7 @@ class DaggerTrainer(BaseRLTrainer):
             )
 
         collected_eps = 0
+        ep_ids_collected = None
         if ensure_unique_episodes:
             ep_ids_collected = set(
                 [ep.episode_id for ep in self.envs.current_episodes()]
@@ -379,6 +378,8 @@ class DaggerTrainer(BaseRLTrainer):
             txn = lmdb_env.begin(write=True)
 
             while collected_eps < self.config.DAGGER.UPDATE_SIZE:
+                current_episodes = None
+                envs_to_pause = None
                 if ensure_unique_episodes:
                     envs_to_pause = []
                     current_episodes = self.envs.current_episodes()
@@ -820,6 +821,7 @@ class DaggerTrainer(BaseRLTrainer):
 
         stats_episodes = {}  # dict of dicts that stores stats per episode
 
+        rgb_frames = None
         if len(config.VIDEO_OPTION) > 0:
             os.makedirs(config.VIDEO_DIR, exist_ok=True)
             rgb_frames = [[] for _ in range(config.NUM_PROCESSES)]
@@ -927,3 +929,140 @@ class DaggerTrainer(BaseRLTrainer):
         for k, v in aggregated_stats.items():
             logger.info(f"Average episode {k}: {v:.6f}")
             writer.add_scalar(f"eval_{split}_{k}", v, checkpoint_num)
+
+    def inference(self) -> None:
+        r"""Runs inference on a single checkpoint, creating a path predictions file."""
+
+        checkpoint_path = self.config.INFERENCE.CKPT_PATH
+        logger.info(f"checkpoint_path: {checkpoint_path}")
+
+        if self.config.INFERENCE.USE_CKPT_CONFIG:
+            config = self._setup_eval_config(
+                self.load_checkpoint(checkpoint_path, map_location="cpu")["config"]
+            )
+        else:
+            config = self.config.clone()
+
+        config.defrost()
+        config.TASK_CONFIG.DATASET.SPLIT = self.config.INFERENCE.SPLIT
+        config.TASK_CONFIG.ENVIRONMENT.ITERATOR_OPTIONS.SHUFFLE = False
+        config.TASK_CONFIG.ENVIRONMENT.ITERATOR_OPTIONS.MAX_SCENE_REPEAT_STEPS = -1
+        config.TASK_CONFIG.TASK.MEASUREMENTS = []
+        config.TASK_CONFIG.TASK.SENSORS = ["INSTRUCTION_SENSOR"]
+        config.ENV_NAME = "VLNCEInferenceEnv"
+        config.freeze()
+
+        # setup agent
+        self.envs = construct_envs_auto_reset_false(
+            config, get_env_class(config.ENV_NAME)
+        )
+        self.device = (
+            torch.device("cuda", config.TORCH_GPU_ID)
+            if torch.cuda.is_available()
+            else torch.device("cpu")
+        )
+
+        self._setup_actor_critic_agent(config.MODEL, True, checkpoint_path)
+        self.actor_critic.eval()
+
+        observations = self.envs.reset()
+        observations = transform_obs(
+            observations, config.TASK_CONFIG.TASK.INSTRUCTION_SENSOR_UUID
+        )
+        batch = batch_obs(observations, self.device)
+
+        rnn_states = torch.zeros(
+            self.actor_critic.net.num_recurrent_layers,
+            config.NUM_PROCESSES,
+            config.MODEL.STATE_ENCODER.hidden_size,
+            device=self.device,
+        )
+        prev_actions = torch.zeros(
+            config.NUM_PROCESSES, 1, device=self.device, dtype=torch.long
+        )
+        not_done_masks = torch.zeros(config.NUM_PROCESSES, 1, device=self.device)
+
+        episode_predictions = defaultdict(list)
+
+        # populate episode_predictions with the starting state
+        current_episodes = self.envs.current_episodes()
+        for i in range(self.envs.num_envs):
+            episode_predictions[current_episodes[i].episode_id].append(
+                self.envs.call_at(i, "get_info", {"observations": {}})
+            )
+
+        with tqdm.tqdm(
+            total=sum(self.envs.count_episodes()),
+            desc=f"[inference:{self.config.INFERENCE.SPLIT}]",
+        ) as pbar:
+            while self.envs.num_envs > 0:
+                current_episodes = self.envs.current_episodes()
+
+                with torch.no_grad():
+                    (_, actions, _, rnn_states) = self.actor_critic.act(
+                        batch,
+                        rnn_states,
+                        prev_actions,
+                        not_done_masks,
+                        deterministic=True,
+                    )
+                    prev_actions.copy_(actions)
+
+                outputs = self.envs.step([a[0].item() for a in actions])
+                observations, _, dones, infos = [list(x) for x in zip(*outputs)]
+
+                not_done_masks = torch.tensor(
+                    [[0.0] if done else [1.0] for done in dones],
+                    dtype=torch.float,
+                    device=self.device,
+                )
+
+                # reset envs and observations if necessary
+                for i in range(self.envs.num_envs):
+                    episode_predictions[current_episodes[i].episode_id].append(infos[i])
+                    if not dones[i]:
+                        continue
+
+                    observations[i] = self.envs.reset_at(i)[0]
+                    prev_actions[i] = torch.zeros(1, dtype=torch.long)
+                    pbar.update(1)
+
+                observations = transform_obs(
+                    observations, config.TASK_CONFIG.TASK.INSTRUCTION_SENSOR_UUID
+                )
+                batch = batch_obs(observations, self.device)
+
+                envs_to_pause = []
+                next_episodes = self.envs.current_episodes()
+                for i in range(self.envs.num_envs):
+                    if not dones[i]:
+                        continue
+
+                    if next_episodes[i].episode_id in episode_predictions:
+                        envs_to_pause.append(i)
+                    else:
+                        episode_predictions[next_episodes[i].episode_id].append(
+                            self.envs.call_at(i, "get_info", {"observations": {}})
+                        )
+
+                (
+                    self.envs,
+                    rnn_states,
+                    not_done_masks,
+                    prev_actions,
+                    batch,
+                ) = self._pause_envs(
+                    envs_to_pause,
+                    self.envs,
+                    rnn_states,
+                    not_done_masks,
+                    prev_actions,
+                    batch,
+                )
+
+        self.envs.close()
+
+        with open(config.INFERENCE.PREDICTIONS_FILE, "w") as f:
+            json.dump(episode_predictions, f, indent=2)
+
+        logger.info(f"Predictions saved to: {config.INFERENCE.PREDICTIONS_FILE}")

@@ -7,7 +7,6 @@ import attr
 from habitat.config import Config
 from habitat.core.dataset import Dataset
 from habitat.core.registry import registry
-from habitat.core.utils import not_none_validator
 from habitat.datasets.pointnav.pointnav_dataset import ALL_SCENES_MASK
 from habitat.datasets.utils import VocabDict
 from habitat.tasks.nav.nav import NavigationGoal
@@ -21,7 +20,9 @@ class VLNExtendedEpisode(VLNEpisode):
     r"""
     instruction_index_string: optional identifier of instruction.
     """
-    instruction_index_string: str = attr.ib(default=None)
+    instruction_index_string: Optional[str] = attr.ib(default=None)
+    goals: Optional[List[NavigationGoal]] = attr.ib(default=None)
+    reference_path: Optional[List[List[float]]] = attr.ib(default=None)
 
 
 @registry.register_dataset(name="VLN-CE-v1")

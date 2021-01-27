@@ -10,6 +10,7 @@ SIMULATOR:
   TURN_ANGLE: 15
   HABITAT_SIM_V0:
     GPU_DEVICE_ID: 0
+    ALLOW_SLIDING: True
   RGB_SENSOR:
     WIDTH: 224
     HEIGHT: 224
@@ -43,14 +44,14 @@ TASK:
     SUCCESS_DISTANCE: 3.0
   NDTW:
     SUCCESS_DISTANCE: 3.0
-    GT_PATH: data/datasets/R2R_VLNCE_v1-1_preprocessed/{split}/{split}_gt.json.gz
+    GT_PATH: data/datasets/R2R_VLNCE_v1-2_preprocessed/{split}/{split}_gt.json.gz
   SDTW:
     SUCCESS_DISTANCE: 3.0
-    GT_PATH: data/datasets/R2R_VLNCE_v1-1_preprocessed/{split}/{split}_gt.json.gz
+    GT_PATH: data/datasets/R2R_VLNCE_v1-2_preprocessed/{split}/{split}_gt.json.gz
   ORACLE_SUCCESS:
     SUCCESS_DISTANCE: 3.0
 DATASET:
   TYPE: VLN-CE-v1
   SPLIT: joint_train_envdrop
-  DATA_PATH: data/datasets/R2R_VLNCE_v1-1_preprocessed/{split}/{split}.json.gz
+  DATA_PATH: data/datasets/R2R_VLNCE_v1-2_preprocessed/{split}/{split}.json.gz
   SCENES_DIR: data/scene_datasets/

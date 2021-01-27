@@ -1,8 +1,10 @@
 from typing import Optional
 
 import habitat
+import numpy as np
 from habitat import Config, Dataset
-from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
+from habitat.tasks.utils import cartesian_to_polar
+from habitat.utils.geometry_utils import quaternion_rotate_vector
 from habitat_baselines.common.baseline_registry import baseline_registry
 
 
@@ -35,3 +37,30 @@ class VLNCEDaggerEnv(habitat.RLEnv):
 
     def get_info(self, observations):
         return self.habitat_env.get_metrics()
+
+
+@baseline_registry.register_env(name="VLNCEInferenceEnv")
+class VLNCEInferenceEnv(habitat.RLEnv):
+    def __init__(self, config: Config, dataset: Optional[Dataset] = None):
+        super().__init__(config.TASK_CONFIG, dataset)
+
+    def get_reward_range(self):
+        return (0.0, 0.0)
+
+    def get_reward(self, observations):
+        return 0.0
+
+    def get_done(self, observations):
+        return self._env.episode_over
+
+    def get_info(self, observations):
+        agent_state = self._env.sim.get_agent_state()
+        heading_vector = quaternion_rotate_vector(
+            agent_state.rotation.inverse(), np.array([0, 0, -1])
+        )
+        heading = cartesian_to_polar(-heading_vector[2], heading_vector[0])[1]
+        return {
+            "position": agent_state.position.tolist(),
+            "heading": heading,
+            "stop": self._env.task.is_stop_called,
+        }

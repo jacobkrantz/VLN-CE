@@ -37,6 +37,18 @@ _C.EVAL.NONLEARNING = CN()
 _C.EVAL.NONLEARNING.AGENT = "RandomAgent"
 
 # -----------------------------------------------------------------------------
+# INFERENCE CONFIG
+# -----------------------------------------------------------------------------
+_C.INFERENCE = CN()
+_C.INFERENCE.SPLIT = "test"
+_C.INFERENCE.USE_CKPT_CONFIG = True
+_C.INFERENCE.CKPT_PATH = "data/checkpoints/CMA_PM_DA_Aug.pth"
+_C.INFERENCE.PREDICTIONS_FILE = "predictions.json"
+_C.INFERENCE.INFERENCE_NONLEARNING = False
+_C.INFERENCE.NONLEARNING = CN()
+_C.INFERENCE.NONLEARNING.AGENT = "RandomAgent"
+
+# -----------------------------------------------------------------------------
 # DAGGER ENVIRONMENT CONFIG
 # -----------------------------------------------------------------------------
 _C.DAGGER = CN()
@@ -73,10 +85,10 @@ _C.MODEL.INSTRUCTION_ENCODER.vocab_size = 2504
 _C.MODEL.INSTRUCTION_ENCODER.max_length = 200
 _C.MODEL.INSTRUCTION_ENCODER.use_pretrained_embeddings = True
 _C.MODEL.INSTRUCTION_ENCODER.embedding_file = (
-    "data/datasets/R2R_VLNCE_v1-1_preprocessed/embeddings.json.gz"
+    "data/datasets/R2R_VLNCE_v1-2_preprocessed/embeddings.json.gz"
 )
 _C.MODEL.INSTRUCTION_ENCODER.dataset_vocab = (
-    "data/datasets/R2R_VLNCE_v1-1_preprocessed/train/train.json.gz"
+    "data/datasets/R2R_VLNCE_v1-2_preprocessed/train/train.json.gz"
 )
 _C.MODEL.INSTRUCTION_ENCODER.fine_tune_embeddings = False
 _C.MODEL.INSTRUCTION_ENCODER.embedding_size = 50

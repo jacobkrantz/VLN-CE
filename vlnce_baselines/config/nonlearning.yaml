@@ -7,3 +7,11 @@ EVAL:
     NONLEARNING:
         # RandomAgent or HandcraftedAgent
         AGENT: RandomAgent
+
+INFERENCE:
+    SPLIT: val_unseen
+    PREDICTIONS_FILE: predictions.json
+    INFERENCE_NONLEARNING: True
+    NONLEARNING:
+        # RandomAgent or HandcraftedAgent
+        AGENT: "RandomAgent"

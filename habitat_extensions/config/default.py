@@ -35,7 +35,7 @@ _C.TASK.NDTW.TYPE = "NDTW"
 _C.TASK.NDTW.SPLIT = "val_seen"
 _C.TASK.NDTW.FDTW = True  # False: DTW
 _C.TASK.NDTW.GT_PATH = (
-    "data/datasets/R2R_VLNCE_v1-1_preprocessed/{split}/{split}_gt.json"
+    "data/datasets/R2R_VLNCE_v1-2_preprocessed/{split}/{split}_gt.json"
 )
 _C.TASK.NDTW.SUCCESS_DISTANCE = 0.2
 # -----------------------------------------------------------------------------
@@ -46,7 +46,7 @@ _C.TASK.SDTW.TYPE = "SDTW"
 _C.TASK.SDTW.SPLIT = "val_seen"
 _C.TASK.SDTW.FDTW = True  # False: DTW
 _C.TASK.SDTW.GT_PATH = (
-    "data/datasets/R2R_VLNCE_v1-1_preprocessed/{split}/{split}_gt.json"
+    "data/datasets/R2R_VLNCE_v1-2_preprocessed/{split}/{split}_gt.json"
 )
 _C.TASK.SDTW.SUCCESS_DISTANCE = 0.2
 # -----------------------------------------------------------------------------

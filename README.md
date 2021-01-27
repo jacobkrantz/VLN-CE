@@ -63,12 +63,12 @@ Extract this data to `data/scene_datasets/mp3d` such that it has the form `data/
 
 #### Dataset
 
-The R2R_VLNCE dataset is a port of the Room-to-Room (R2R) dataset created by [Anderson et al](http://openaccess.thecvf.com/content_cvpr_2018/papers/Anderson_Vision-and-Language_Navigation_Interpreting_CVPR_2018_paper.pdf) for use with the [Matterport3DSimulator](https://github.com/peteanderson80/Matterport3DSimulator) (MP3D-Sim). For details on the porting process from MP3D-Sim to the continuous reconstructions used in Habitat, please see our [paper](https://arxiv.org/abs/2004.02857). We provide two versions of the dataset, `R2R_VLNCE_v1-1` and `R2R_VLNCE_v1-1_preprocessed`. `R2R_VLNCE_v1-1` contains the `train`, `val_seen`, and `val_unseen` splits. `R2R_VLNCE_v1-1_preprocessed` runs with our models out of the box. It includes instruction tokens mapped to GloVe embeddings, ground truth trajectories, and a data augmentation split (`envdrop`) that is ported from [R2R-EnvDrop](https://github.com/airsplay/R2R-EnvDrop). For more details on the dataset contents and format, see our [project page](https://jacobkrantz.github.io/vlnce/data).
+The R2R_VLNCE dataset is a port of the Room-to-Room (R2R) dataset created by [Anderson et al](http://openaccess.thecvf.com/content_cvpr_2018/papers/Anderson_Vision-and-Language_Navigation_Interpreting_CVPR_2018_paper.pdf) for use with the [Matterport3DSimulator](https://github.com/peteanderson80/Matterport3DSimulator) (MP3D-Sim). For details on the porting process from MP3D-Sim to the continuous reconstructions used in Habitat, please see our [paper](https://arxiv.org/abs/2004.02857). We provide two versions of the dataset, `R2R_VLNCE_v1-2` and `R2R_VLNCE_v1-2_preprocessed`. `R2R_VLNCE_v1-2` contains the `train`, `val_seen`, `val_unseen`, and `test` splits. `R2R_VLNCE_v1-2_preprocessed` runs with our models out of the box. It additionally includes instruction tokens mapped to GloVe embeddings, ground truth trajectories, and a data augmentation split (`envdrop`) that is ported from [R2R-EnvDrop](https://github.com/airsplay/R2R-EnvDrop). The `test` split does not contain episode goals or ground truth paths. See [here](#vln-ce-challenge-on-evalai) for using the `test` split. For more details on the dataset contents and format, see our [project page](https://jacobkrantz.github.io/vlnce/data).
 
 | Dataset | Extract path | Size |
 |-------------- |---------------------------- |------- |
-| [R2R_VLNCE_v1-1.zip](https://drive.google.com/file/d/1r6tsahJYctvWefcyFKfsQXUA2Khj4qvR/view) | `data/datasets/R2R_VLNCE_v1-1` | 3 MB |
-| [R2R_VLNCE_v1-1_preprocessed.zip](https://drive.google.com/file/d/1jNEDBiv7SnsBpXLLt7nstYpS_mg71KTV/view) | `data/datasets/R2R_VLNCE_v1-1_preprocessed` | 344 MB |
+| [R2R_VLNCE_v1-2.zip](https://drive.google.com/file/d/1YDNWsauKel0ht7cx15_d9QnM6rS4dKUV/view) | `data/datasets/R2R_VLNCE_v1-2` | 3 MB |
+| [R2R_VLNCE_v1-2_preprocessed.zip](https://drive.google.com/file/d/18sS9c2aRu2EAL4c7FyG29LDAm2pHzeqQ/view) | `data/datasets/R2R_VLNCE_v1-2_preprocessed` | 345 MB |
 
 Downloading the dataset:
 
@@ -76,15 +76,15 @@ Downloading the dataset:
 python -m pip install gdown
 cd data/datasets
 
-# R2R_VLNCE_v1-1
-gdown https://drive.google.com/uc?id=1r6tsahJYctvWefcyFKfsQXUA2Khj4qvR
-unzip R2R_VLNCE_v1-1.zip
-rm R2R_VLNCE_v1-1.zip
+# R2R_VLNCE_v1-2
+gdown https://drive.google.com/uc?id=1YDNWsauKel0ht7cx15_d9QnM6rS4dKUV
+unzip R2R_VLNCE_v1-2.zip
+rm R2R_VLNCE_v1-2.zip
 
-# R2R_VLNCE_v1-1_preprocessed
-gdown https://drive.google.com/uc?id=1jNEDBiv7SnsBpXLLt7nstYpS_mg71KTV
-unzip R2R_VLNCE_v1-1_preprocessed.zip
-rm R2R_VLNCE_v1-1_preprocessed.zip
+# R2R_VLNCE_v1-2_preprocessed
+gdown https://drive.google.com/uc?id=18sS9c2aRu2EAL4c7FyG29LDAm2pHzeqQ
+unzip R2R_VLNCE_v1-2_preprocessed.zip
+rm R2R_VLNCE_v1-2_preprocessed.zip
 ```
 
 #### Encoder Weights
@@ -93,10 +93,12 @@ The learning-based models receive a depth observation at each time step. The dep
 
 ## Usage
 
-The `run.py` script is how training and evaluation is done for all model configurations. Specify a configuration file and a run type (either `train` or `eval`) as such:
+The `run.py` script is how training and evaluation is done for all model configurations. Specify a configuration file and a run type as such:
 
 ```bash
-python run.py --exp-config path/to/experiment_config.yaml --run-type {train | eval}
+python run.py \
+  --exp-config path/to/experiment_config.yaml \
+  --run-type {train | eval | inference}
 ```
 
 For example, a random agent can be evaluated on 10 val-seen episodes using this command:
@@ -165,6 +167,16 @@ Note that the simulator and torch code do not need to run on the same card. For 
 
 ## Models and Results From the Paper
 
+The baseline model for the VLN-CE task is the cross-modal attention model trained with progress monitoring, DAgger, and augmented data (CMA_PM_DA_Aug). As evaluated on the leaderboard, this model achieves:
+
+| Split      | TL   | NE   | OS   | SR   | SPL  |
+|:----------:|:----:|:----:|:----:|:----:|:----:|
+| Test       | 8.85 | 7.91 | 0.36 | 0.28 | 0.25 |
+| Val Unseen | 8.27 | 7.60 | 0.36 | 0.29 | 0.27 |
+| Val Seen   | 9.06 | 7.21 | 0.44 | 0.34 | 0.32 |
+
+Experiments from the paper can be ran by following the configs in the table below:
+
 | Model              | val_seen SPL | val_unseen SPL | Config                                                                                                                                                                                   |
 |--------------------|--------------|----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Seq2Seq            | 0.24         | 0.18           | [seq2seq.yaml](vlnce_baselines/config/paper_configs/seq2seq.yaml)                                                                                                                        |
@@ -189,6 +201,10 @@ Note that the simulator and torch code do not need to run on the same card. For 
 | Aug     | Uses the [EnvDrop](https://github.com/airsplay/R2R-EnvDrop) episodes to augment the training set                                                      |
 | ⟶       | Use the config on the left to train the model. Evaluate each checkpoint on `val_unseen`. The best checkpoint (according to `val_unseen` SPL) is then fine-tuned using the config on the right. Make sure to update the field `DAGGER.CKPT_TO_LOAD` before fine-tuning. |
 
+### Published Results vs Leaderboard
+
+The CMA_PM_DA_Aug model was originally presented with a val_unseen performance of 0.30 SPL, however the leaderboard evaluates this same model on val_unseen at 0.27 SPL. This model was originally trained and evaluated on a hardware + Habitat build that gave slightly different results, as is the case for the other paper experiments. Going forward, the leaderboard contains the performance metrics that should be used for official comparison. Official validation performance of CMA_PM_DA_Aug is in the table at the top of the [results section](#models-and-results-from-the-paper). In our tests, the installation procedure for this repo gives nearly identical evaluation to the leaderboard, but we recognize that compute hardware along with the version and build of the Habitat Simulator are factors to reproducibility.
+
 ### Pretrained Models
 
 We provide pretrained models for our best Seq2Seq model [Seq2Seq_DA](https://drive.google.com/open?id=1gds-t8LAxuh236gk-5AWU0LzDg9rJmQS) and Cross-Modal Attention model ([CMA_PM_DA_Aug](https://drive.google.com/open?id=199hhL9M0yiurB3Hb_-DrpMRxWP1lSGX3)). These models are hosted on Google Drive and can be downloaded as such:
@@ -201,6 +217,33 @@ gdown https://drive.google.com/uc?id=199hhL9M0yiurB3Hb_-DrpMRxWP1lSGX3
 # Seq2Seq_DA (135MB)
 gdown https://drive.google.com/uc?id=1gds-t8LAxuh236gk-5AWU0LzDg9rJmQS
 ```
+
+## VLN-CE Leaderboard on EvalAI
+
+The [VLN-CE leaderboard](https://eval.ai/web/challenges/challenge-page/719) is now live and taking submissions for public test set evaluation. For challenge guidelines, please visit the leaderboard webpage.
+
+To submit to the leaderboard, you must run your agent locally and submit a JSON file containing the generated agent trajectories. Starter code for generating this JSON file is provided in the function `DaggerTrainer.inference()`. Here is an example of generating this file using the pretrained Cross-Modal Attention baseline:
+
+```bash
+python run.py \
+  --exp-config vlnce_baselines/config/paper_configs/test_set_inference.yaml \
+  --run-type inference
+```
+
+Relevant experiment configurations include:
+
+```yaml
+INFERENCE:
+  SPLIT: test  # dataset split to generate predictions for: {val_seen | val_unseen | test}
+  CKPT_PATH: data/checkpoints/CMA_PM_DA_Aug.pth  # checkpoint of your trained model
+  PREDICTIONS_FILE: predictions.json  # where to save your agent's generated trajectories
+  USE_CKPT_CONFIG: False
+  INFERENCE_NONLEARNING: False
+  NONLEARNING:
+    AGENT: RandomAgent  # if INFERENCE_NONLEARNING, specify an agent class
+```
+
+It is important that your predictions file is in the proper format &mdash; please see the challenge webpage for specification.
 
 ## Contributing
 
@@ -215,13 +258,11 @@ pre-commit install
 
 If you use VLN-CE in your research, please cite the following [paper](https://arxiv.org/abs/2004.02857):
 
-```
-@article{krantz2020navgraph,
-    title={Beyond the Nav-Graph: Vision-and-Language Navigation in Continuous Environments},
-    author={Jacob Krantz and Erik Wijmans and Arjun Majumdar and Dhruv Batra and Stefan Lee},
-    year={2020},
-    eprint={2004.02857},
-    archivePrefix={arXiv},
-    primaryClass={cs.CV}
-}
+```tex
+@inproceedings{krantz_vlnce_2020,
+  title={Beyond the Nav-Graph: Vision and Language Navigation in Continuous Environments},
+  author={Jacob Krantz and Erik Wijmans and Arjun Majundar and Dhruv Batra and Stefan Lee},
+  booktitle={European Conference on Computer Vision (ECCV)},
+  year={2020}
+ }
 ```

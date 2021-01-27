@@ -11,16 +11,16 @@ from habitat_baselines.common.baseline_registry import baseline_registry
 import habitat_extensions
 import vlnce_baselines
 from vlnce_baselines.config.default import get_config
-from vlnce_baselines.nonlearning_agents import evaluate_agent
+from vlnce_baselines.nonlearning_agents import evaluate_agent, nonlearning_inference
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--run-type",
-        choices=["train", "eval"],
+        choices=["train", "eval", "inference"],
         required=True,
-        help="run type of the experiment (train, eval)",
+        help="run type of the experiment (train, eval, inference)",
     )
     parser.add_argument(
         "--exp-config",
@@ -57,10 +57,15 @@ def run_exp(exp_config: str, run_type: str, opts=None) -> None:
     random.seed(config.TASK_CONFIG.SEED)
     np.random.seed(config.TASK_CONFIG.SEED)
     torch.manual_seed(config.TASK_CONFIG.SEED)
-    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
 
     if run_type == "eval" and config.EVAL.EVAL_NONLEARNING:
         evaluate_agent(config)
+        return
+
+    if run_type == "inference" and config.INFERENCE.INFERENCE_NONLEARNING:
+        nonlearning_inference(config)
         return
 
     trainer_init = baseline_registry.get_trainer(config.TRAINER_NAME)
@@ -71,6 +76,8 @@ def run_exp(exp_config: str, run_type: str, opts=None) -> None:
         trainer.train()
     elif run_type == "eval":
         trainer.eval()
+    elif run_type == "inference":
+        trainer.inference()
 
 
 if __name__ == "__main__":

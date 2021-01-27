@@ -8,15 +8,21 @@ from habitat.core.agent import Agent
 from habitat.sims.habitat_simulator.actions import HabitatSimActions
 from tqdm import tqdm
 
+from vlnce_baselines.common.environments import VLNCEInferenceEnv
 
-def evaluate_agent(config: Config):
+
+def evaluate_agent(config: Config) -> None:
     split = config.EVAL.SPLIT
     config.defrost()
+    # turn off RGBD rendering as neither RandomAgent nor HandcraftedAgent use it.
+    config.TASK_CONFIG.SIMULATOR.AGENT_0.SENSORS = []
+    config.TASK_CONFIG.TASK.SENSORS = []
+    config.TASK_CONFIG.ENVIRONMENT.ITERATOR_OPTIONS.SHUFFLE = False
+    config.TASK_CONFIG.ENVIRONMENT.ITERATOR_OPTIONS.MAX_SCENE_REPEAT_STEPS = -1
     config.TASK_CONFIG.DATASET.SPLIT = split
     config.TASK_CONFIG.TASK.NDTW.SPLIT = split
     config.TASK_CONFIG.TASK.SDTW.SPLIT = split
     config.freeze()
-    logger.info(config)
 
     env = Env(config=config.TASK_CONFIG)
 
@@ -51,7 +57,48 @@ def evaluate_agent(config: Config):
 
     with open(f"stats_{config.EVAL.NONLEARNING.AGENT}_{split}.json", "w") as f:
         json.dump(stats, f, indent=4)
-    return stats
+
+
+def nonlearning_inference(config: Config) -> None:
+    split = config.INFERENCE.SPLIT
+    config.defrost()
+    # turn off RGBD rendering as neither RandomAgent nor HandcraftedAgent use it.
+    config.TASK_CONFIG.SIMULATOR.AGENT_0.SENSORS = []
+    config.TASK_CONFIG.DATASET.SPLIT = config.INFERENCE.SPLIT
+    config.TASK_CONFIG.ENVIRONMENT.ITERATOR_OPTIONS.SHUFFLE = False
+    config.TASK_CONFIG.ENVIRONMENT.ITERATOR_OPTIONS.MAX_SCENE_REPEAT_STEPS = -1
+    config.TASK_CONFIG.TASK.MEASUREMENTS = []
+    config.TASK_CONFIG.TASK.SENSORS = []
+    config.freeze()
+
+    env = VLNCEInferenceEnv(config=config)
+
+    assert config.INFERENCE.NONLEARNING.AGENT in [
+        "RandomAgent",
+        "HandcraftedAgent",
+    ], "INFERENCE.NONLEARNING.AGENT must be either RandomAgent or HandcraftedAgent."
+
+    if config.INFERENCE.NONLEARNING.AGENT == "RandomAgent":
+        agent = RandomAgent()
+    else:
+        agent = HandcraftedAgent()
+
+    episode_predictions = defaultdict(list)
+    for _ in tqdm(range(len(env.episodes)), desc=f"[inference:{split}]"):
+        env.reset()
+        obs = agent.reset()
+
+        episode_id = env.current_episode.episode_id
+        episode_predictions[episode_id].append(env.get_info(obs))
+
+        while not env.get_done(obs):
+            obs = env.step(agent.act(obs))
+            episode_predictions[episode_id].append(env.get_info(obs))
+
+    with open(config.INFERENCE.PREDICTIONS_FILE, "w") as f:
+        json.dump(episode_predictions, f, indent=2)
+
+    logger.info(f"Predictions saved to: {config.INFERENCE.PREDICTIONS_FILE}")
 
 
 class RandomAgent(Agent):

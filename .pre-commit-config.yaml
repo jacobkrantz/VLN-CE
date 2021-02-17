@@ -7,21 +7,56 @@ repos:
     -   id: check-added-large-files
         args: ['--maxkb=2000']
     -   id: end-of-file-fixer
-    -   id: check-yaml
     -   id: debug-statements
+    -   id: check-case-conflict
+    -   id: check-docstring-first
+    -   id: check-executables-have-shebangs
+    -   id: check-merge-conflict
+    -   id: check-yaml
+        exclude: "habitat_baselines/slambased/data/"
+    -   id: mixed-line-ending
+        args: ['--fix=lf']
 
--   repo: https://github.com/asottile/seed-isort-config
-    rev: v1.9.2
+-   repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
+    rev: v2.0.0
     hooks:
-    -   id: seed-isort-config
+    -   id: pretty-format-ini
+        args: [--autofix]
+    -   id: pretty-format-toml
+        args: [--autofix]
 
--   repo: https://github.com/pre-commit/mirrors-isort
-    rev: v4.3.20
+-   repo: https://github.com/timothycrosley/isort
+    rev: 5.6.4
     hooks:
     -   id: isort
+        exclude: data/
+        additional_dependencies: [toml]
 
 -   repo: https://github.com/ambv/black
-    rev: 19.3b0
+    rev: 20.8b1
     hooks:
     - id: black
       language_version: python3.6
+
+-   repo: https://github.com/myint/autoflake
+    rev: v1.4
+    hooks:
+    -   id: autoflake
+        args: ['--expand-star-imports', '--ignore-init-module-imports', '--in-place']
+        exclude: data/
+
+-   repo: https://gitlab.com/pycqa/flake8
+    rev: 3.8.4
+    hooks:
+    -   id: flake8
+        additional_dependencies:
+        - flake8-builtins
+        - flake8-bugbear
+        - flake8-comprehensions
+        - flake8-return
+        - flake8-simplify
+
+-   repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.7.1.1
+    hooks:
+    -   id: shellcheck

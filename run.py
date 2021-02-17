@@ -8,10 +8,13 @@ import torch
 from habitat import logger
 from habitat_baselines.common.baseline_registry import baseline_registry
 
-import habitat_extensions
-import vlnce_baselines
+import habitat_extensions  # noqa: F401
+import vlnce_baselines  # noqa: F401
 from vlnce_baselines.config.default import get_config
-from vlnce_baselines.nonlearning_agents import evaluate_agent, nonlearning_inference
+from vlnce_baselines.nonlearning_agents import (
+    evaluate_agent,
+    nonlearning_inference,
+)
 
 
 def main():
@@ -58,7 +61,7 @@ def run_exp(exp_config: str, run_type: str, opts=None) -> None:
     np.random.seed(config.TASK_CONFIG.SEED)
     torch.manual_seed(config.TASK_CONFIG.SEED)
     torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.deterministic = False
 
     if run_type == "eval" and config.EVAL.EVAL_NONLEARNING:
         evaluate_agent(config)

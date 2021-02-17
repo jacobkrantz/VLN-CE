@@ -6,7 +6,7 @@ from habitat import Env, logger
 from habitat.config.default import Config
 from habitat.core.agent import Agent
 from habitat.sims.habitat_simulator.actions import HabitatSimActions
-from tqdm import tqdm
+from tqdm import tqdm, trange
 
 from vlnce_baselines.common.environments import VLNCEInferenceEnv
 
@@ -38,7 +38,7 @@ def evaluate_agent(config: Config) -> None:
 
     stats = defaultdict(float)
     num_episodes = min(config.EVAL.EPISODE_COUNT, len(env.episodes))
-    for i in tqdm(range(num_episodes)):
+    for _ in trange(num_episodes):
         obs = env.reset()
         agent.reset()
 

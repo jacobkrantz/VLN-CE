@@ -5,7 +5,6 @@ import torch.nn.functional as F
 import torchvision.models as models
 from gym import spaces
 from habitat import logger
-from habitat_baselines.common.utils import Flatten
 from habitat_baselines.rl.ddppo.policy import resnet
 from habitat_baselines.rl.ddppo.policy.resnet_policy import ResNetEncoder
 
@@ -29,7 +28,6 @@ class VlnResnetDepthEncoder(nn.Module):
             ngroups=resnet_baseplanes // 2,
             make_backbone=getattr(resnet, backbone),
             normalize_visual_inputs=normalize_visual_inputs,
-            obs_transform=None,
         )
 
         for param in self.visual_encoder.parameters():
@@ -55,8 +53,10 @@ class VlnResnetDepthEncoder(nn.Module):
         if not self.spatial_output:
             self.output_shape = (output_size,)
             self.visual_fc = nn.Sequential(
-                Flatten(),
-                nn.Linear(np.prod(self.visual_encoder.output_shape), output_size),
+                nn.Flatten(),
+                nn.Linear(
+                    np.prod(self.visual_encoder.output_shape), output_size
+                ),
                 nn.ReLU(True),
             )
         else:
@@ -114,7 +114,11 @@ class TorchVisionResNet50(nn.Module):
     """
 
     def __init__(
-        self, observation_space, output_size, device, spatial_output: bool = False
+        self,
+        observation_space,
+        output_size,
+        device,
+        spatial_output: bool = False,
     ):
         super().__init__()
         self.device = device
@@ -126,7 +130,7 @@ class TorchVisionResNet50(nn.Module):
             obs_size_1 = observation_space.spaces["rgb"].shape[1]
             if obs_size_0 != 224 or obs_size_1 != 224:
                 logger.warn(
-                    f"WARNING: TorchVisionResNet50: observation size {obs_size} is not conformant to expected ResNet input size [3x224x224]"
+                    "TorchVisionResNet50: observation size is not conformant to expected ResNet input size [3x224x224]"
                 )
             linear_layer_input_size += self.resnet_layer_size
         else:
@@ -181,7 +185,9 @@ class TorchVisionResNet50(nn.Module):
         """
 
         def resnet_forward(observation):
-            resnet_output = torch.zeros(1, dtype=torch.float32, device=self.device)
+            resnet_output = torch.zeros(
+                1, dtype=torch.float32, device=self.device
+            )
 
             def hook(m, i, o):
                 resnet_output.set_(o)

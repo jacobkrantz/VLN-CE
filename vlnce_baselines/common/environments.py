@@ -1,8 +1,9 @@
-from typing import Optional
+from typing import Any, Dict, Optional, Tuple
 
 import habitat
 import numpy as np
 from habitat import Config, Dataset
+from habitat.core.simulator import Observations
 from habitat.tasks.utils import cartesian_to_polar
 from habitat.utils.geometry_utils import quaternion_rotate_vector
 from habitat_baselines.common.baseline_registry import baseline_registry
@@ -11,31 +12,20 @@ from habitat_baselines.common.baseline_registry import baseline_registry
 @baseline_registry.register_env(name="VLNCEDaggerEnv")
 class VLNCEDaggerEnv(habitat.RLEnv):
     def __init__(self, config: Config, dataset: Optional[Dataset] = None):
-        self._success_distance = config.TASK_CONFIG.TASK.SUCCESS_DISTANCE
         super().__init__(config.TASK_CONFIG, dataset)
 
-    def get_reward_range(self):
+    def get_reward_range(self) -> Tuple[float, float]:
         # We don't use a reward for DAgger, but the baseline_registry requires
         # we inherit from habitat.RLEnv.
         return (0.0, 0.0)
 
-    def get_reward(self, observations):
+    def get_reward(self, observations: Observations) -> float:
         return 0.0
 
-    def _distance_target(self):
-        current_position = self._env.sim.get_agent_state().position.tolist()
-        target_position = self._env.current_episode.goals[0].position
-        distance = self._env.sim.geodesic_distance(current_position, target_position)
-        return distance
+    def get_done(self, observations: Observations) -> bool:
+        return self._env.episode_over
 
-    def get_done(self, observations):
-        episode_success = (
-            self._env.task.is_stop_called
-            and self._distance_target() < self._success_distance
-        )
-        return self._env.episode_over or episode_success
-
-    def get_info(self, observations):
+    def get_info(self, observations: Observations) -> Dict[Any, Any]:
         return self.habitat_env.get_metrics()
 
 
@@ -47,13 +37,13 @@ class VLNCEInferenceEnv(habitat.RLEnv):
     def get_reward_range(self):
         return (0.0, 0.0)
 
-    def get_reward(self, observations):
+    def get_reward(self, observations: Observations):
         return 0.0
 
-    def get_done(self, observations):
+    def get_done(self, observations: Observations):
         return self._env.episode_over
 
-    def get_info(self, observations):
+    def get_info(self, observations: Observations):
         agent_state = self._env.sim.get_agent_state()
         heading_vector = quaternion_rotate_vector(
             agent_state.rotation.inverse(), np.array([0, 0, -1])

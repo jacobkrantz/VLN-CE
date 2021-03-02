@@ -1,4 +1,5 @@
 import json
+import jsonlines
 import os
 import time
 import warnings
@@ -48,6 +49,8 @@ class BaseVLNCETrainer(BaseILTrainer):
             else torch.device("cpu")
         )
         self.obs_transforms = []
+        self.start_epoch = 0
+        self.step_id = 0
 
     def _initialize_policy(
         self,
@@ -71,6 +74,10 @@ class BaseVLNCETrainer(BaseILTrainer):
             ckpt_path = config.IL.ckpt_to_load
             ckpt_dict = self.load_checkpoint(ckpt_path, map_location="cpu")
             self.policy.load_state_dict(ckpt_dict["state_dict"])
+            if config.IL.is_requeue:
+                self.optimizer.load_state_dict(ckpt_dict["optim_state"])
+                self.start_epoch = ckpt_dict["epoch"] + 1
+                self.step_id = ckpt_dict["step_id"]
             logger.info(f"Loaded weights from checkpoint: {ckpt_path}")
 
         params = sum(param.numel() for param in self.policy.parameters())
@@ -231,6 +238,15 @@ class BaseVLNCETrainer(BaseILTrainer):
             config.TASK_CONFIG.TASK.MEASUREMENTS.append("COLLISIONS")
 
         config.freeze()
+
+        if config.EVAL.SAVE_RESULTS:
+            fname = os.path.join(
+                config.RESULTS_DIR,
+                f"stats_ckpt_{checkpoint_index}_{config.TASK_CONFIG.DATASET.SPLIT}.json",
+            )
+            if os.path.exists(fname):
+                print("skipping -- evaluation exists.")
+                return
 
         envs = construct_envs_auto_reset_false(
             config, get_env_class(config.ENV_NAME)
@@ -490,12 +506,19 @@ class BaseVLNCETrainer(BaseILTrainer):
 
         episode_predictions = defaultdict(list)
 
+        # episode ID --> instruction ID for rxr predictions format
+        instruction_ids: Dict[str, int] = {}
+
         # populate episode_predictions with the starting state
         current_episodes = envs.current_episodes()
         for i in range(envs.num_envs):
             episode_predictions[current_episodes[i].episode_id].append(
                 envs.call_at(i, "get_info", {"observations": {}})
             )
+            if config.INFERENCE.FORMAT == "rxr":
+                ep_id = current_episodes[i].episode_id
+                k = current_episodes[i].instruction.instruction_id
+                instruction_ids[ep_id] = int(k)
 
         with tqdm.tqdm(
             total=sum(envs.count_episodes()),
@@ -557,6 +580,10 @@ class BaseVLNCETrainer(BaseILTrainer):
                         ].append(
                             envs.call_at(i, "get_info", {"observations": {}})
                         )
+                        if config.INFERENCE.FORMAT == "rxr":
+                            ep_id = next_episodes[i].episode_id
+                            k = next_episodes[i].instruction.instruction_id
+                            instruction_ids[ep_id] = int(k)
 
                 (
                     envs,
@@ -576,9 +603,37 @@ class BaseVLNCETrainer(BaseILTrainer):
 
         envs.close()
 
-        with open(config.INFERENCE.PREDICTIONS_FILE, "w") as f:
-            json.dump(episode_predictions, f, indent=2)
+        if config.INFERENCE.FORMAT == "r2r":
+            with open(config.INFERENCE.PREDICTIONS_FILE, "w") as f:
+                json.dump(episode_predictions, f, indent=2)
 
-        logger.info(
-            f"Predictions saved to: {config.INFERENCE.PREDICTIONS_FILE}"
-        )
+            logger.info(
+                f"Predictions saved to: {config.INFERENCE.PREDICTIONS_FILE}"
+            )
+        else:  # use 'rxr' format for rxr-habitat leaderboard
+            predictions_out = []
+
+            for k,v in episode_predictions.items():
+
+                # save only positions that changed
+                path = [v[0]["position"]]
+                for p in v[1:]:
+                    if path[-1] != p["position"]:
+                        path.append(p["position"])
+
+                predictions_out.append(
+                    {
+                        "instruction_id": instruction_ids[k],
+                        "path": path,
+                    }
+                )
+
+            predictions_out.sort(key=lambda x: x["instruction_id"])
+            with jsonlines.open(
+                config.INFERENCE.PREDICTIONS_FILE, mode="w"
+            ) as writer:
+                writer.write_all(predictions_out)
+
+            logger.info(
+                f"Predictions saved to: {config.INFERENCE.PREDICTIONS_FILE}"
+            )

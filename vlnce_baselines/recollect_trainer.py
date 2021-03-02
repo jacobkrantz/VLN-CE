@@ -111,9 +111,8 @@ class RecollectTrainer(BaseVLNCETrainer):
 
             AuxLosses.activate()
             batches_per_epoch = dataset.length // dataset.batch_size
-            step_id = 0
 
-            for epoch in range(self.config.IL.epochs):
+            for epoch in range(self.start_epoch, self.config.IL.epochs):
                 epoch_time = time.time()
                 epoch_str = f"{epoch + 1}/{self.config.IL.epochs}"
 
@@ -167,7 +166,9 @@ class RecollectTrainer(BaseVLNCETrainer):
                             self.config.IL.RECOLLECT_TRAINER.effective_batch_size
                             // self.config.IL.batch_size
                         )
-                        step_grad = bool(step_id % loss_accumulation_scalar)
+                        step_grad = bool(
+                            self.step_id % loss_accumulation_scalar
+                        )
                     else:
                         loss_accumulation_scalar = 1
                         step_grad = True
@@ -206,12 +207,12 @@ class RecollectTrainer(BaseVLNCETrainer):
                             + f" [Loss: {round(loss, 4)}]"
                             + aux_s
                         )
-                    writer.add_scalar("loss", loss, step_id)
-                    writer.add_scalar("action_loss", action_loss, step_id)
-                    writer.add_scalar("aux_loss", aux_loss, step_id)
-                    step_id += 1  # noqa: SIM113
+                    writer.add_scalar("loss", loss, self.step_id)
+                    writer.add_scalar("action_loss", action_loss, self.step_id)
+                    writer.add_scalar("aux_loss", aux_loss, self.step_id)
+                    self.step_id += 1  # noqa: SIM113
 
-                self.save_checkpoint(epoch, step_id)
+                self.save_checkpoint(epoch, self.step_id)
 
             AuxLosses.deactivate()
             dataset.close_sims()

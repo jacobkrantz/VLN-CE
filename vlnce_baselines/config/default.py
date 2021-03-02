@@ -49,6 +49,7 @@ _C.INFERENCE.PREDICTIONS_FILE = "predictions.json"
 _C.INFERENCE.INFERENCE_NONLEARNING = False
 _C.INFERENCE.NONLEARNING = CN()
 _C.INFERENCE.NONLEARNING.AGENT = "RandomAgent"
+_C.INFERENCE.FORMAT = "rxr"  # either 'rxr' or 'r2r'
 # -----------------------------------------------------------------------------
 # IMITATION LEARNING CONFIG
 # -----------------------------------------------------------------------------
@@ -63,6 +64,8 @@ _C.IL.inflection_weight_coef = 3.2
 # load an already trained model for fine tuning
 _C.IL.load_from_ckpt = False
 _C.IL.ckpt_to_load = "data/checkpoints/ckpt.0.pth"
+# if True, loads the optimizer state, epoch, and step_id from the ckpt dict.
+_C.IL.is_requeue = False
 # -----------------------------------------------------------------------------
 # IL: RXR TRAINER CONFIG
 # -----------------------------------------------------------------------------

@@ -85,7 +85,6 @@ Download: [RxR_VLNCE_v0.zip](https://storage.googleapis.com/rxr-habitat/RxR_VLNC
 
 The RxR-Habitat Challenge uses the [Room-Across-Room dataset](https://github.com/google-research-datasets/RxR) ported to continuous environments. The porting process follows the same steps used to port Room-to-Room (R2R), with details in [this paper](https://arxiv.org/abs/2004.02857). The dataset has train, val_seen, and val_unseen splits with both Guide and Follower trajectories ported. To use the baseline models with these splits, the precomputed BERT instruction features should be downloaded from [here](https://github.com/google-research-datasets/RxR#downloading-bert-text-features) and be saved or linked to `data/datasets/RxR_VLNCE_v0/text_features/rxr_{split}/{instruction_id}_{language}_text_features.npz`.
 
-
 The starter code expects these files to be in this structure:
 
 ```text
@@ -106,6 +105,8 @@ data
 |   |    |-- val_unseen_guide_gt.json.gz
 |   |    |-- val_unseen_follower.json.gz
 |   |    |-- val_unseen_follower_gt.json.gz
+|   | -- test_challenge
+|   |    |-- test_challenge_guide.json.gz
 |   | -- text_features
 |   |    |-- ...
 ```
@@ -133,9 +134,19 @@ To cite the challenge, please cite the following papers ([RxR](https://arxiv.org
 
 ## Leaderboard Submission
 
-The leaderboard will be open March 1, 2021.
+The leaderboard is now open! For guidelines and access, please visit: [ai.google.com/research/rxr/habitat](https://ai.google.com/research/rxr/habitat)
 
-For guidelines and access to the leaderboard, please visit: [ai.google.com/research/rxr/habitat](https://ai.google.com/research/rxr/habitat)
+### Generating Submission Files
+
+Leaderboard submissions are made by running an agent locally and submitting a jsonlines file (`.jsonl`) containing the agent's trajectories. Starter code for generating this file is provided in the function `BaseVLNCETrainer.inference()`. Here is an example of generating predictions for English using the Cross-Modal Attention baseline:
+
+```bash
+python run.py \
+  --exp-config vlnce_baselines/config/rxr_configs/rxr_cma_en.yaml \
+  --run-type inference
+```
+
+If you use different models for different languages, you can merge their predictions with `scripts/merge_inference_predictions.py`. Submissions are only accepted that contain all episodes from all three languages in the test-challenge split.
 
 ## Starter Code
 

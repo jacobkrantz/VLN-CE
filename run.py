@@ -62,6 +62,8 @@ def run_exp(exp_config: str, run_type: str, opts=None) -> None:
     torch.manual_seed(config.TASK_CONFIG.SEED)
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = False
+    if torch.cuda.is_available():
+        torch.set_num_threads(1)
 
     if run_type == "eval" and config.EVAL.EVAL_NONLEARNING:
         evaluate_agent(config)

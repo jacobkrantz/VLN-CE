@@ -7,6 +7,15 @@ TENSORBOARD_DIR: data/tensorboard_dirs/rxr_cma_en
 CHECKPOINT_FOLDER: data/checkpoints/rxr_cma_en
 EVAL_CKPT_PATH_DIR: data/checkpoints/rxr_cma_en
 
+INFERENCE:
+  SPLIT: test_challenge
+  LANGUAGES: [en-IN, en-IN]
+  SAMPLE: True
+  USE_CKPT_CONFIG: False
+  CKPT_PATH: data/checkpoints/ckpt.0.pth  # REPLACE THIS
+  PREDICTIONS_FILE: rxr_cma_en_test_challenge.jsonl
+  FORMAT: rxr
+
 EVAL:
   USE_CKPT_CONFIG: False
   SPLIT: val_unseen

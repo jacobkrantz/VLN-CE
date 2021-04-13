@@ -10,7 +10,7 @@ from habitat.core.registry import registry
 from habitat.core.utils import not_none_validator
 from habitat.datasets.pointnav.pointnav_dataset import ALL_SCENES_MASK
 from habitat.datasets.utils import VocabDict
-from habitat.tasks.nav.nav import NavigationEpisode, NavigationGoal
+from habitat.tasks.nav.nav import NavigationGoal
 from habitat.tasks.vln.vln import InstructionData, VLNEpisode
 
 DEFAULT_SCENE_PATH_PREFIX = "data/scene_datasets/"
@@ -20,25 +20,26 @@ ALL_ROLES_MASK = "*"
 
 @attr.s(auto_attribs=True)
 class ExtendedInstructionData:
-    instruction_text: str
-    instruction_id: Optional[str] = None
-    language: Optional[str] = None
-    annotator_id: Optional[str] = None
-    edit_distance: Optional[float] = None
-    timed_instruction: Optional[List[Dict[str, Union[float, str]]]] = None
-    instruction_tokens: Optional[List[str]] = None
-    split: str = None
+    instruction_text: str = attr.ib(default=None, validator=not_none_validator)
+    instruction_id: Optional[str] = attr.ib(default=None)
+    language: Optional[str] = attr.ib(default=None)
+    annotator_id: Optional[str] = attr.ib(default=None)
+    edit_distance: Optional[float] = attr.ib(default=None)
+    timed_instruction: Optional[List[Dict[str, Union[float, str]]]] = attr.ib(
+        default=None
+    )
+    instruction_tokens: Optional[List[str]] = attr.ib(default=None)
+    split: Optional[str] = attr.ib(default=None)
 
 
 @attr.s(auto_attribs=True, kw_only=True)
-class VLNExtendedEpisode(NavigationEpisode):
-    reference_path: List[List[float]] = attr.ib(
-        default=None, validator=not_none_validator
-    )
+class VLNExtendedEpisode(VLNEpisode):
+    goals: Optional[List[NavigationGoal]] = attr.ib(default=None)
+    reference_path: Optional[List[List[float]]] = attr.ib(default=None)
     instruction: ExtendedInstructionData = attr.ib(
         default=None, validator=not_none_validator
     )
-    trajectory_id: Union[int, str] = attr.ib(default=None)
+    trajectory_id: Optional[Union[int, str]] = attr.ib(default=None)
 
 
 @registry.register_dataset(name="VLN-CE-v1")
@@ -57,7 +58,7 @@ class VLNCEDatasetV1(Dataset):
         ) and os.path.exists(config.SCENES_DIR)
 
     @staticmethod
-    def _scene_from_episode(episode: VLNExtendedEpisode) -> str:
+    def _scene_from_episode(episode: VLNEpisode) -> str:
         r"""Helper method to get the scene name from an episode.  Assumes
         the scene_id is formated /path/to/<scene_name>.<ext>
         """
@@ -127,7 +128,7 @@ class RxRVLNCEDatasetV1(Dataset):
     languages: List[str] = ["en-US", "en-IN", "hi-IN", "te-IN"]
 
     @staticmethod
-    def _scene_from_episode(episode: VLNExtendedEpisode) -> str:
+    def _scene_from_episode(episode: VLNEpisode) -> str:
         r"""Helper method to get the scene name from an episode.  Assumes
         the scene_id is formated /path/to/<scene_name>.<ext>
         """

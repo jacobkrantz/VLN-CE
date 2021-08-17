@@ -1,38 +1,33 @@
 import gc
-import json
 import os
 import random
 import warnings
 from collections import defaultdict
-from typing import Dict
 
 import lmdb
 import msgpack_numpy
 import numpy as np
 import torch
-import torch.nn.functional as F
 import tqdm
-from habitat import Config, logger
-from habitat.utils.visualizations.utils import append_text_to_image
-from habitat_baselines.common.base_trainer import BaseRLTrainer
+from habitat import logger
 from habitat_baselines.common.baseline_registry import baseline_registry
 from habitat_baselines.common.environments import get_env_class
-from habitat_baselines.common.tensorboard_utils import TensorboardWriter
-from habitat_baselines.common.utils import batch_obs, generate_video
-
-from habitat_extensions.utils import observations_to_image
-from vlnce_baselines.common.aux_losses import AuxLosses
-from vlnce_baselines.common.env_utils import (
-    construct_envs,
-    construct_envs_auto_reset_false,
+from habitat_baselines.common.obs_transformers import (
+    apply_obs_transforms_batch,
+    apply_obs_transforms_obs_space,
+    get_active_obs_transforms,
 )
-from vlnce_baselines.common.utils import transform_obs
-from vlnce_baselines.models.cma_policy import CMAPolicy
-from vlnce_baselines.models.seq2seq_policy import Seq2SeqPolicy
+from habitat_baselines.common.tensorboard_utils import TensorboardWriter
+from habitat_baselines.utils.common import batch_obs
+
+from vlnce_baselines.common.aux_losses import AuxLosses
+from vlnce_baselines.common.base_il_trainer import BaseVLNCETrainer
+from vlnce_baselines.common.env_utils import construct_envs
+from vlnce_baselines.common.utils import extract_instruction_tokens
 
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore", category=FutureWarning)
-    import tensorflow as tf
+    import tensorflow as tf  # noqa: F401
 
 
 class ObservationsDict(dict):
@@ -45,11 +40,11 @@ class ObservationsDict(dict):
 
 def collate_fn(batch):
     """Each sample in batch: (
-            obs,
-            prev_actions,
-            oracle_actions,
-            inflec_weight,
-        )
+        obs,
+        prev_actions,
+        oracle_actions,
+        inflec_weight,
+    )
     """
 
     def _pad_helper(t, max_len, fill_val=0):
@@ -57,7 +52,9 @@ def collate_fn(batch):
         if pad_amount == 0:
             return t
 
-        pad = torch.full_like(t[0:1], fill_val).expand(pad_amount, *t.size()[1:])
+        pad = torch.full_like(t[0:1], fill_val).expand(
+            pad_amount, *t.size()[1:]
+        )
         return torch.cat([t, pad], dim=0)
 
     transposed = list(zip(*batch))
@@ -71,7 +68,9 @@ def collate_fn(batch):
     new_observations_batch = defaultdict(list)
     for sensor in observations_batch[0]:
         for bid in range(B):
-            new_observations_batch[sensor].append(observations_batch[bid][sensor])
+            new_observations_batch[sensor].append(
+                observations_batch[bid][sensor]
+            )
 
     observations_batch = new_observations_batch
 
@@ -82,14 +81,18 @@ def collate_fn(batch):
                 observations_batch[sensor][bid], max_traj_len, fill_val=1.0
             )
 
-        prev_actions_batch[bid] = _pad_helper(prev_actions_batch[bid], max_traj_len)
+        prev_actions_batch[bid] = _pad_helper(
+            prev_actions_batch[bid], max_traj_len
+        )
         corrected_actions_batch[bid] = _pad_helper(
             corrected_actions_batch[bid], max_traj_len
         )
         weights_batch[bid] = _pad_helper(weights_batch[bid], max_traj_len)
 
     for sensor in observations_batch:
-        observations_batch[sensor] = torch.stack(observations_batch[sensor], dim=1)
+        observations_batch[sensor] = torch.stack(
+            observations_batch[sensor], dim=1
+        )
         observations_batch[sensor] = observations_batch[sensor].view(
             -1, *observations_batch[sensor].size()[2:]
         )
@@ -97,7 +100,9 @@ def collate_fn(batch):
     prev_actions_batch = torch.stack(prev_actions_batch, dim=1)
     corrected_actions_batch = torch.stack(corrected_actions_batch, dim=1)
     weights_batch = torch.stack(weights_batch, dim=1)
-    not_done_masks = torch.ones_like(corrected_actions_batch, dtype=torch.float)
+    not_done_masks = torch.ones_like(
+        corrected_actions_batch, dtype=torch.uint8
+    )
     not_done_masks[0] = 0
 
     observations_batch = ObservationsDict(observations_batch)
@@ -166,7 +171,8 @@ class IWTrajectoryDataset(torch.utils.data.IterableDataset):
 
                     new_preload.append(
                         msgpack_numpy.unpackb(
-                            txn.get(str(self.load_ordering.pop()).encode()), raw=False
+                            txn.get(str(self.load_ordering.pop()).encode()),
+                            raw=False,
                         )
                     )
 
@@ -199,7 +205,12 @@ class IWTrajectoryDataset(torch.utils.data.IterableDataset):
             ]
         )
 
-        return (obs, prev_actions, oracle_actions, self.inflec_weights[inflections])
+        return (
+            obs,
+            prev_actions,
+            oracle_actions,
+            self.inflec_weights[inflections],
+        )
 
     def __iter__(self):
         worker_info = torch.utils.data.get_worker_info()
@@ -214,131 +225,71 @@ class IWTrajectoryDataset(torch.utils.data.IterableDataset):
 
         # Reverse so we can use .pop()
         self.load_ordering = list(
-            reversed(_block_shuffle(list(range(start, end)), self.preload_size))
+            reversed(
+                _block_shuffle(list(range(start, end)), self.preload_size)
+            )
         )
 
         return self
 
 
 @baseline_registry.register_trainer(name="dagger")
-class DaggerTrainer(BaseRLTrainer):
+class DaggerTrainer(BaseVLNCETrainer):
     def __init__(self, config=None):
-        super().__init__(config)
-        self.actor_critic = None
-        self.envs = None
-
-        self.device = (
-            torch.device("cuda", self.config.TORCH_GPU_ID)
-            if torch.cuda.is_available()
-            else torch.device("cpu")
-        )
-        self.lmdb_features_dir = self.config.DAGGER.LMDB_FEATURES_DIR.format(
+        self.lmdb_features_dir = config.IL.DAGGER.lmdb_features_dir.format(
             split=config.TASK_CONFIG.DATASET.SPLIT
         )
+        super().__init__(config)
 
-    def _setup_actor_critic_agent(
-        self, config: Config, load_from_ckpt: bool, ckpt_path: str
-    ) -> None:
-        r"""Sets up actor critic and agent.
-        Args:
-            config: MODEL config
-        Returns:
-            None
-        """
-        config.defrost()
-        config.TORCH_GPU_ID = self.config.TORCH_GPU_ID
-        config.freeze()
-
-        if config.CMA.use:
-            self.actor_critic = CMAPolicy(
-                observation_space=self.envs.observation_spaces[0],
-                action_space=self.envs.action_spaces[0],
-                model_config=config,
-            )
-        else:
-            self.actor_critic = Seq2SeqPolicy(
-                observation_space=self.envs.observation_spaces[0],
-                action_space=self.envs.action_spaces[0],
-                model_config=config,
-            )
-        self.actor_critic.to(self.device)
-
-        self.optimizer = torch.optim.Adam(
-            self.actor_critic.parameters(), lr=self.config.DAGGER.LR
-        )
-        if load_from_ckpt:
-            ckpt_dict = self.load_checkpoint(ckpt_path, map_location="cpu")
-            self.actor_critic.load_state_dict(ckpt_dict["state_dict"])
-            logger.info(f"Loaded weights from checkpoint: {ckpt_path}")
-        logger.info("Finished setting up actor critic model.")
-
-    def save_checkpoint(self, file_name) -> None:
-        r"""Save checkpoint with specified name.
-
-        Args:
-            file_name: file name for checkpoint
-
-        Returns:
-            None
-        """
-        checkpoint = {
-            "state_dict": self.actor_critic.state_dict(),
-            "config": self.config,
-        }
-        torch.save(checkpoint, os.path.join(self.config.CHECKPOINT_FOLDER, file_name))
-
-    def load_checkpoint(self, checkpoint_path, *args, **kwargs) -> Dict:
-        r"""Load checkpoint of specified path as a dict.
-
-        Args:
-            checkpoint_path: path of target checkpoint
-            *args: additional positional args
-            **kwargs: additional keyword args
-
-        Returns:
-            dict containing checkpoint info
-        """
-        return torch.load(checkpoint_path, *args, **kwargs)
+    def _make_dirs(self) -> None:
+        self._make_ckpt_dir()
+        os.makedirs(self.lmdb_features_dir, exist_ok=True)
+        if self.config.EVAL.SAVE_RESULTS:
+            self._make_results_dir()
 
     def _update_dataset(self, data_it):
         if torch.cuda.is_available():
             with torch.cuda.device(self.device):
                 torch.cuda.empty_cache()
 
-        if self.envs is None:
-            self.envs = construct_envs(self.config, get_env_class(self.config.ENV_NAME))
+        envs = construct_envs(self.config, get_env_class(self.config.ENV_NAME))
+        expert_uuid = self.config.IL.DAGGER.expert_policy_sensor_uuid
 
-        recurrent_hidden_states = torch.zeros(
-            self.actor_critic.net.num_recurrent_layers,
-            self.config.NUM_PROCESSES,
+        rnn_states = torch.zeros(
+            envs.num_envs,
+            self.policy.net.num_recurrent_layers,
             self.config.MODEL.STATE_ENCODER.hidden_size,
             device=self.device,
         )
         prev_actions = torch.zeros(
-            self.config.NUM_PROCESSES, 1, device=self.device, dtype=torch.long
+            envs.num_envs,
+            1,
+            device=self.device,
+            dtype=torch.long,
         )
-        not_done_masks = torch.zeros(self.config.NUM_PROCESSES, 1, device=self.device)
+        not_done_masks = torch.zeros(
+            envs.num_envs, 1, dtype=torch.uint8, device=self.device
+        )
 
-        observations = self.envs.reset()
-        observations = transform_obs(
+        observations = envs.reset()
+        observations = extract_instruction_tokens(
             observations, self.config.TASK_CONFIG.TASK.INSTRUCTION_SENSOR_UUID
         )
         batch = batch_obs(observations, self.device)
+        batch = apply_obs_transforms_batch(batch, self.obs_transforms)
 
-        episodes = [[] for _ in range(self.envs.num_envs)]
-        skips = [False for _ in range(self.envs.num_envs)]
+        episodes = [[] for _ in range(envs.num_envs)]
+        skips = [False for _ in range(envs.num_envs)]
         # Populate dones with False initially
-        dones = [False for _ in range(self.envs.num_envs)]
+        dones = [False for _ in range(envs.num_envs)]
 
         # https://arxiv.org/pdf/1011.0686.pdf
         # Theoretically, any beta function is fine so long as it converges to
         # zero as data_it -> inf. The paper suggests starting with beta = 1 and
         # exponential decay.
-        if self.config.DAGGER.P == 0.0:
-            # in Python 0.0 ** 0.0 == 1.0, but we want 0.0
-            beta = 0.0
-        else:
-            beta = self.config.DAGGER.P ** data_it
+        p = self.config.IL.DAGGER.p
+        # in Python 0.0 ** 0.0 == 1.0, but we want 0.0
+        beta = 0.0 if p == 0.0 else p ** data_it
 
         ensure_unique_episodes = beta == 1.0
 
@@ -352,7 +303,7 @@ class DaggerTrainer(BaseRLTrainer):
         rgb_hook = None
         if self.config.MODEL.RGB_ENCODER.cnn_type == "TorchVisionResNet50":
             rgb_features = torch.zeros((1,), device="cpu")
-            rgb_hook = self.actor_critic.net.rgb_encoder.layer_extract.register_forward_hook(
+            rgb_hook = self.policy.net.rgb_encoder.layer_extract.register_forward_hook(
                 hook_builder(rgb_features)
             )
 
@@ -360,39 +311,45 @@ class DaggerTrainer(BaseRLTrainer):
         depth_hook = None
         if self.config.MODEL.DEPTH_ENCODER.cnn_type == "VlnResnetDepthEncoder":
             depth_features = torch.zeros((1,), device="cpu")
-            depth_hook = self.actor_critic.net.depth_encoder.visual_encoder.register_forward_hook(
+            depth_hook = self.policy.net.depth_encoder.visual_encoder.register_forward_hook(
                 hook_builder(depth_features)
             )
 
         collected_eps = 0
         ep_ids_collected = None
         if ensure_unique_episodes:
-            ep_ids_collected = set(
-                [ep.episode_id for ep in self.envs.current_episodes()]
-            )
+            ep_ids_collected = {
+                ep.episode_id for ep in envs.current_episodes()
+            }
 
-        with tqdm.tqdm(total=self.config.DAGGER.UPDATE_SIZE) as pbar, lmdb.open(
-            self.lmdb_features_dir, map_size=int(self.config.DAGGER.LMDB_MAP_SIZE)
+        with tqdm.tqdm(
+            total=self.config.IL.DAGGER.update_size, dynamic_ncols=True
+        ) as pbar, lmdb.open(
+            self.lmdb_features_dir,
+            map_size=int(self.config.IL.DAGGER.lmdb_map_size),
         ) as lmdb_env, torch.no_grad():
             start_id = lmdb_env.stat()["entries"]
             txn = lmdb_env.begin(write=True)
 
-            while collected_eps < self.config.DAGGER.UPDATE_SIZE:
+            while collected_eps < self.config.IL.DAGGER.update_size:
                 current_episodes = None
                 envs_to_pause = None
                 if ensure_unique_episodes:
                     envs_to_pause = []
-                    current_episodes = self.envs.current_episodes()
+                    current_episodes = envs.current_episodes()
 
-                for i in range(self.envs.num_envs):
+                for i in range(envs.num_envs):
                     if dones[i] and not skips[i]:
                         ep = episodes[i]
                         traj_obs = batch_obs(
-                            [step[0] for step in ep], device=torch.device("cpu")
+                            [step[0] for step in ep],
+                            device=torch.device("cpu"),
                         )
-                        del traj_obs["vln_oracle_action_sensor"]
+                        del traj_obs[expert_uuid]
                         for k, v in traj_obs.items():
                             traj_obs[k] = v.numpy()
+                            if self.config.IL.DAGGER.lmdb_fp16:
+                                traj_obs[k] = traj_obs[k].astype(np.float16)
 
                         transposed_ep = [
                             traj_obs,
@@ -401,59 +358,68 @@ class DaggerTrainer(BaseRLTrainer):
                         ]
                         txn.put(
                             str(start_id + collected_eps).encode(),
-                            msgpack_numpy.packb(transposed_ep, use_bin_type=True),
+                            msgpack_numpy.packb(
+                                transposed_ep, use_bin_type=True
+                            ),
                         )
 
                         pbar.update()
                         collected_eps += 1
 
                         if (
-                            collected_eps % self.config.DAGGER.LMDB_COMMIT_FREQUENCY
+                            collected_eps
+                            % self.config.IL.DAGGER.lmdb_commit_frequency
                         ) == 0:
                             txn.commit()
                             txn = lmdb_env.begin(write=True)
 
                         if ensure_unique_episodes:
-                            if current_episodes[i].episode_id in ep_ids_collected:
+                            if (
+                                current_episodes[i].episode_id
+                                in ep_ids_collected
+                            ):
                                 envs_to_pause.append(i)
                             else:
-                                ep_ids_collected.add(current_episodes[i].episode_id)
+                                ep_ids_collected.add(
+                                    current_episodes[i].episode_id
+                                )
 
                     if dones[i]:
                         episodes[i] = []
 
                 if ensure_unique_episodes:
                     (
-                        self.envs,
-                        recurrent_hidden_states,
+                        envs,
+                        rnn_states,
                         not_done_masks,
                         prev_actions,
                         batch,
+                        _,
                     ) = self._pause_envs(
                         envs_to_pause,
-                        self.envs,
-                        recurrent_hidden_states,
+                        envs,
+                        rnn_states,
                         not_done_masks,
                         prev_actions,
                         batch,
                     )
-                    if self.envs.num_envs == 0:
+                    if envs.num_envs == 0:
                         break
 
-                (_, actions, _, recurrent_hidden_states) = self.actor_critic.act(
+                actions, rnn_states = self.policy.act(
                     batch,
-                    recurrent_hidden_states,
+                    rnn_states,
                     prev_actions,
                     not_done_masks,
                     deterministic=False,
                 )
                 actions = torch.where(
                     torch.rand_like(actions, dtype=torch.float) < beta,
-                    batch["vln_oracle_action_sensor"].long(),
+                    batch[expert_uuid].long(),
                     actions,
                 )
 
-                for i in range(self.envs.num_envs):
+                for i in range(envs.num_envs):
                     if rgb_features is not None:
                         observations[i]["rgb_features"] = rgb_features[i]
                         del observations[i]["rgb"]
@@ -466,79 +432,41 @@ class DaggerTrainer(BaseRLTrainer):
                         (
                             observations[i],
                             prev_actions[i].item(),
-                            batch["vln_oracle_action_sensor"][i].item(),
+                            batch[expert_uuid][i].item(),
                         )
                     )
 
-                skips = batch["vln_oracle_action_sensor"].long() == -1
-                actions = torch.where(skips, torch.zeros_like(actions), actions)
+                skips = batch[expert_uuid].long() == -1
+                actions = torch.where(
+                    skips, torch.zeros_like(actions), actions
+                )
                 skips = skips.squeeze(-1).to(device="cpu", non_blocking=True)
-
                 prev_actions.copy_(actions)
 
-                outputs = self.envs.step([a[0].item() for a in actions])
-                observations, rewards, dones, _ = [list(x) for x in zip(*outputs)]
+                outputs = envs.step([a[0].item() for a in actions])
+                observations, _, dones, _ = [list(x) for x in zip(*outputs)]
+                observations = extract_instruction_tokens(
+                    observations,
+                    self.config.TASK_CONFIG.TASK.INSTRUCTION_SENSOR_UUID,
+                )
+                batch = batch_obs(observations, self.device)
+                batch = apply_obs_transforms_batch(batch, self.obs_transforms)
 
                 not_done_masks = torch.tensor(
-                    [[0.0] if done else [1.0] for done in dones],
-                    dtype=torch.float,
+                    [[0] if done else [1] for done in dones],
+                    dtype=torch.uint8,
                     device=self.device,
                 )
 
-                observations = transform_obs(
-                    observations, self.config.TASK_CONFIG.TASK.INSTRUCTION_SENSOR_UUID
-                )
-                batch = batch_obs(observations, self.device)
-
             txn.commit()
 
-        self.envs.close()
-        self.envs = None
+        envs.close()
+        envs = None
 
         if rgb_hook is not None:
             rgb_hook.remove()
         if depth_hook is not None:
             depth_hook.remove()
-
-    def _update_agent(
-        self, observations, prev_actions, not_done_masks, corrected_actions, weights
-    ):
-        T, N = corrected_actions.size()
-        self.optimizer.zero_grad()
-
-        recurrent_hidden_states = torch.zeros(
-            self.actor_critic.net.num_recurrent_layers,
-            N,
-            self.config.MODEL.STATE_ENCODER.hidden_size,
-            device=self.device,
-        )
-
-        AuxLosses.clear()
-
-        distribution = self.actor_critic.build_distribution(
-            observations, recurrent_hidden_states, prev_actions, not_done_masks
-        )
-
-        logits = distribution.logits
-        logits = logits.view(T, N, -1)
-
-        action_loss = F.cross_entropy(
-            logits.permute(0, 2, 1), corrected_actions, reduction="none"
-        )
-        action_loss = ((weights * action_loss).sum(0) / weights.sum(0)).mean()
-
-        aux_mask = (weights > 0).view(-1)
-        aux_loss = AuxLosses.reduce(aux_mask)
-
-        loss = action_loss + aux_loss
-        loss.backward()
-
-        self.optimizer.step()
-
-        if isinstance(aux_loss, torch.Tensor):
-            return loss.item(), action_loss.item(), aux_loss.item()
-        else:
-            return loss.item(), action_loss.item(), aux_loss
 
     def train(self) -> None:
         r"""Main method for training DAgger.
@@ -546,18 +474,18 @@ class DaggerTrainer(BaseRLTrainer):
         Returns:
             None
         """
-        os.makedirs(self.lmdb_features_dir, exist_ok=True)
-        os.makedirs(self.config.CHECKPOINT_FOLDER, exist_ok=True)
-
-        if self.config.DAGGER.PRELOAD_LMDB_FEATURES:
+        if self.config.IL.DAGGER.preload_lmdb_features:
             try:
                 lmdb.open(self.lmdb_features_dir, readonly=True)
             except lmdb.Error as err:
-                logger.error("Cannot open database for teacher forcing preload.")
+                logger.error(
+                    "Cannot open database for teacher forcing preload."
+                )
                 raise err
         else:
             with lmdb.open(
-                self.lmdb_features_dir, map_size=int(self.config.DAGGER.LMDB_MAP_SIZE)
+                self.lmdb_features_dir,
+                map_size=int(self.config.IL.DAGGER.lmdb_map_size),
             ) as lmdb_env, lmdb_env.begin(write=True) as txn:
                 txn.drop(lmdb_env.open_db())
 
@@ -565,59 +493,54 @@ class DaggerTrainer(BaseRLTrainer):
         self.config.defrost()
         self.config.TASK_CONFIG.TASK.NDTW.SPLIT = split
         self.config.TASK_CONFIG.TASK.SDTW.SPLIT = split
+        if (
+            self.config.IL.DAGGER.expert_policy_sensor
+            not in self.config.TASK_CONFIG.TASK.SENSORS
+        ):
+            self.config.TASK_CONFIG.TASK.SENSORS.append(
+                self.config.IL.DAGGER.expert_policy_sensor
+            )
 
         # if doing teacher forcing, don't switch the scene until it is complete
-        if self.config.DAGGER.P == 1.0:
+        if self.config.IL.DAGGER.p == 1.0:
             self.config.TASK_CONFIG.ENVIRONMENT.ITERATOR_OPTIONS.MAX_SCENE_REPEAT_STEPS = (
                 -1
             )
         self.config.freeze()
 
-        if self.config.DAGGER.PRELOAD_LMDB_FEATURES:
-            # when preloadeding features, its quicker to just load one env as we just
-            # need the observation space from it.
-            single_proc_config = self.config.clone()
-            single_proc_config.defrost()
-            single_proc_config.NUM_PROCESSES = 1
-            single_proc_config.freeze()
-            self.envs = construct_envs(
-                single_proc_config, get_env_class(self.config.ENV_NAME)
-            )
-        else:
-            self.envs = construct_envs(self.config, get_env_class(self.config.ENV_NAME))
+        # Extract the observation and action space.
+        single_proc_config = self.config.clone()
+        single_proc_config.defrost()
+        single_proc_config.NUM_ENVIRONMENTS = 1
+        single_proc_config.freeze()
+        with construct_envs(
+            single_proc_config, get_env_class(self.config.ENV_NAME)
+        ) as envs:
+            observation_space = envs.observation_spaces[0]
+            action_space = envs.action_spaces[0]
 
-        self._setup_actor_critic_agent(
-            self.config.MODEL,
-            self.config.DAGGER.LOAD_FROM_CKPT,
-            self.config.DAGGER.CKPT_TO_LOAD,
+        self.obs_transforms = get_active_obs_transforms(self.config)
+        observation_space = apply_obs_transforms_obs_space(
+            observation_space, self.obs_transforms
         )
 
-        logger.info(
-            "agent number of parameters: {}".format(
-                sum(param.numel() for param in self.actor_critic.parameters())
-            )
+        self._initialize_policy(
+            self.config,
+            self.config.IL.load_from_ckpt,
+            observation_space=observation_space,
+            action_space=action_space,
         )
-        logger.info(
-            "agent number of trainable parameters: {}".format(
-                sum(
-                    p.numel() for p in self.actor_critic.parameters() if p.requires_grad
-                )
-            )
-        )
-
-        if self.config.DAGGER.PRELOAD_LMDB_FEATURES:
-            self.envs.close()
-            del self.envs
-            self.envs = None
 
         with TensorboardWriter(
-            self.config.TENSORBOARD_DIR, flush_secs=self.flush_secs, purge_step=0
+            self.config.TENSORBOARD_DIR,
+            flush_secs=self.flush_secs,
+            purge_step=0,
         ) as writer:
-            for dagger_it in range(self.config.DAGGER.ITERATIONS):
+            for dagger_it in range(self.config.IL.DAGGER.iterations):
                 step_id = 0
-                if not self.config.DAGGER.PRELOAD_LMDB_FEATURES:
+                if not self.config.IL.DAGGER.preload_lmdb_features:
                     self._update_dataset(
-                        dagger_it + (1 if self.config.DAGGER.LOAD_FROM_CKPT else 0)
+                        dagger_it + (1 if self.config.IL.load_from_ckpt else 0)
                     )
 
                 if torch.cuda.is_available():
@@ -627,14 +550,14 @@ class DaggerTrainer(BaseRLTrainer):
 
                 dataset = IWTrajectoryDataset(
                     self.lmdb_features_dir,
-                    self.config.DAGGER.USE_IW,
-                    inflection_weight_coef=self.config.MODEL.inflection_weight_coef,
-                    lmdb_map_size=self.config.DAGGER.LMDB_MAP_SIZE,
-                    batch_size=self.config.DAGGER.BATCH_SIZE,
+                    self.config.IL.use_iw,
+                    inflection_weight_coef=self.config.IL.inflection_weight_coef,
+                    lmdb_map_size=self.config.IL.DAGGER.lmdb_map_size,
+                    batch_size=self.config.IL.batch_size,
                 )
                 diter = torch.utils.data.DataLoader(
                     dataset,
-                    batch_size=self.config.DAGGER.BATCH_SIZE,
+                    batch_size=self.config.IL.batch_size,
                     shuffle=False,
                     collate_fn=collate_fn,
                     pin_memory=False,
@@ -643,9 +566,14 @@ class DaggerTrainer(BaseRLTrainer):
                 )
 
                 AuxLosses.activate()
-                for epoch in tqdm.trange(self.config.DAGGER.EPOCHS):
+                for epoch in tqdm.trange(
+                    self.config.IL.epochs, dynamic_ncols=True
+                ):
                     for batch in tqdm.tqdm(
-                        diter, total=dataset.length // dataset.batch_size, leave=False
+                        diter,
+                        total=dataset.length // dataset.batch_size,
+                        leave=False,
+                        dynamic_ncols=True,
                     ):
                         (
                             observations_batch,
@@ -654,415 +582,55 @@ class DaggerTrainer(BaseRLTrainer):
                             corrected_actions_batch,
                             weights_batch,
                         ) = batch
+
                         observations_batch = {
-                            k: v.to(device=self.device, non_blocking=True)
+                            k: v.to(
+                                device=self.device,
+                                dtype=torch.float32,
+                                non_blocking=True,
+                            )
                             for k, v in observations_batch.items()
                         }
 
-                        try:
-                            loss, action_loss, aux_loss = self._update_agent(
-                                observations_batch,
-                                prev_actions_batch.to(
-                                    device=self.device, non_blocking=True
-                                ),
-                                not_done_masks.to(
-                                    device=self.device, non_blocking=True
-                                ),
-                                corrected_actions_batch.to(
-                                    device=self.device, non_blocking=True
-                                ),
-                                weights_batch.to(device=self.device, non_blocking=True),
-                            )
-                        except:
-                            logger.info(
-                                "ERROR: failed to update agent. Updating agent with batch size of 1."
-                            )
-                            loss, action_loss, aux_loss = 0, 0, 0
-                            prev_actions_batch = prev_actions_batch.cpu()
-                            not_done_masks = not_done_masks.cpu()
-                            corrected_actions_batch = corrected_actions_batch.cpu()
-                            weights_batch = weights_batch.cpu()
-                            observations_batch = {
-                                k: v.cpu() for k, v in observations_batch.items()
-                            }
-                            for i in range(not_done_masks.size(0)):
-                                output = self._update_agent(
-                                    {
-                                        k: v[i].to(
-                                            device=self.device, non_blocking=True
-                                        )
-                                        for k, v in observations_batch.items()
-                                    },
-                                    prev_actions_batch[i].to(
-                                        device=self.device, non_blocking=True
-                                    ),
-                                    not_done_masks[i].to(
-                                        device=self.device, non_blocking=True
-                                    ),
-                                    corrected_actions_batch[i].to(
-                                        device=self.device, non_blocking=True
-                                    ),
-                                    weights_batch[i].to(
-                                        device=self.device, non_blocking=True
-                                    ),
-                                )
-                                loss += output[0]
-                                action_loss += output[1]
-                                aux_loss += output[2]
+                        loss, action_loss, aux_loss = self._update_agent(
+                            observations_batch,
+                            prev_actions_batch.to(
+                                device=self.device, non_blocking=True
+                            ),
+                            not_done_masks.to(
+                                device=self.device, non_blocking=True
+                            ),
+                            corrected_actions_batch.to(
+                                device=self.device, non_blocking=True
+                            ),
+                            weights_batch.to(
+                                device=self.device, non_blocking=True
+                            ),
+                        )
 
                         logger.info(f"train_loss: {loss}")
                         logger.info(f"train_action_loss: {action_loss}")
                         logger.info(f"train_aux_loss: {aux_loss}")
                         logger.info(f"Batches processed: {step_id}.")
-                        logger.info(f"On DAgger iter {dagger_it}, Epoch {epoch}.")
-                        writer.add_scalar(f"train_loss_iter_{dagger_it}", loss, step_id)
-                        writer.add_scalar(
-                            f"train_action_loss_iter_{dagger_it}", action_loss, step_id
+                        logger.info(
+                            f"On DAgger iter {dagger_it}, Epoch {epoch}."
                         )
                         writer.add_scalar(
-                            f"train_aux_loss_iter_{dagger_it}", aux_loss, step_id
+                            f"train_loss_iter_{dagger_it}", loss, step_id
                         )
-                        step_id += 1
+                        writer.add_scalar(
+                            f"train_action_loss_iter_{dagger_it}",
+                            action_loss,
+                            step_id,
+                        )
+                        writer.add_scalar(
+                            f"train_aux_loss_iter_{dagger_it}",
+                            aux_loss,
+                            step_id,
+                        )
+                        step_id += 1  # noqa: SIM113
 
                     self.save_checkpoint(
-                        f"ckpt.{dagger_it * self.config.DAGGER.EPOCHS + epoch}.pth"
+                        f"ckpt.{dagger_it * self.config.IL.epochs + epoch}.pth"
                     )
                 AuxLosses.deactivate()
-
-    @staticmethod
-    def _pause_envs(
-        envs_to_pause,
-        envs,
-        recurrent_hidden_states,
-        not_done_masks,
-        prev_actions,
-        batch,
-    ):
-        # pausing self.envs with no new episode
-        if len(envs_to_pause) > 0:
-            state_index = list(range(envs.num_envs))
-            for idx in reversed(envs_to_pause):
-                state_index.pop(idx)
-                envs.pause_at(idx)
-
-            # indexing along the batch dimensions
-            recurrent_hidden_states = recurrent_hidden_states[:, state_index]
-            not_done_masks = not_done_masks[state_index]
-            prev_actions = prev_actions[state_index]
-
-            for k, v in batch.items():
-                batch[k] = v[state_index]
-
-        return (envs, recurrent_hidden_states, not_done_masks, prev_actions, batch)
-
-    def _eval_checkpoint(
-        self, checkpoint_path: str, writer: TensorboardWriter, checkpoint_index: int = 0
-    ) -> None:
-        r"""Evaluates a single checkpoint. Assumes episode IDs are unique.
-
-        Args:
-            checkpoint_path: path of checkpoint
-            writer: tensorboard writer object for logging to tensorboard
-            checkpoint_index: index of cur checkpoint for logging
-
-        Returns:
-            None
-        """
-        logger.info(f"checkpoint_path: {checkpoint_path}")
-
-        if self.config.EVAL.USE_CKPT_CONFIG:
-            config = self._setup_eval_config(
-                self.load_checkpoint(checkpoint_path, map_location="cpu")["config"]
-            )
-        else:
-            config = self.config.clone()
-
-        config.defrost()
-        config.TASK_CONFIG.DATASET.SPLIT = config.EVAL.SPLIT
-        config.TASK_CONFIG.TASK.NDTW.SPLIT = config.EVAL.SPLIT
-        config.TASK_CONFIG.TASK.SDTW.SPLIT = config.EVAL.SPLIT
-        config.TASK_CONFIG.ENVIRONMENT.ITERATOR_OPTIONS.SHUFFLE = False
-        config.TASK_CONFIG.ENVIRONMENT.ITERATOR_OPTIONS.MAX_SCENE_REPEAT_STEPS = -1
-        if len(config.VIDEO_OPTION) > 0:
-            config.defrost()
-            config.TASK_CONFIG.TASK.MEASUREMENTS.append("TOP_DOWN_MAP")
-            config.TASK_CONFIG.TASK.MEASUREMENTS.append("COLLISIONS")
-
-        config.freeze()
-
-        # setup agent
-        self.envs = construct_envs_auto_reset_false(
-            config, get_env_class(config.ENV_NAME)
-        )
-        self.device = (
-            torch.device("cuda", config.TORCH_GPU_ID)
-            if torch.cuda.is_available()
-            else torch.device("cpu")
-        )
-
-        self._setup_actor_critic_agent(config.MODEL, True, checkpoint_path)
-
-        observations = self.envs.reset()
-        observations = transform_obs(
-            observations, config.TASK_CONFIG.TASK.INSTRUCTION_SENSOR_UUID
-        )
-        batch = batch_obs(observations, self.device)
-
-        eval_recurrent_hidden_states = torch.zeros(
-            self.actor_critic.net.num_recurrent_layers,
-            config.NUM_PROCESSES,
-            config.MODEL.STATE_ENCODER.hidden_size,
-            device=self.device,
-        )
-        prev_actions = torch.zeros(
-            config.NUM_PROCESSES, 1, device=self.device, dtype=torch.long
-        )
-        not_done_masks = torch.zeros(config.NUM_PROCESSES, 1, device=self.device)
-
-        stats_episodes = {}  # dict of dicts that stores stats per episode
-
-        rgb_frames = None
-        if len(config.VIDEO_OPTION) > 0:
-            os.makedirs(config.VIDEO_DIR, exist_ok=True)
-            rgb_frames = [[] for _ in range(config.NUM_PROCESSES)]
-
-        self.actor_critic.eval()
-        while (
-            self.envs.num_envs > 0 and len(stats_episodes) < config.EVAL.EPISODE_COUNT
-        ):
-            current_episodes = self.envs.current_episodes()
-
-            with torch.no_grad():
-                (_, actions, _, eval_recurrent_hidden_states) = self.actor_critic.act(
-                    batch,
-                    eval_recurrent_hidden_states,
-                    prev_actions,
-                    not_done_masks,
-                    deterministic=True,
-                )
-                prev_actions.copy_(actions)
-
-            outputs = self.envs.step([a[0].item() for a in actions])
-            observations, _, dones, infos = [list(x) for x in zip(*outputs)]
-
-            not_done_masks = torch.tensor(
-                [[0.0] if done else [1.0] for done in dones],
-                dtype=torch.float,
-                device=self.device,
-            )
-
-            # reset envs and observations if necessary
-            for i in range(self.envs.num_envs):
-                if len(config.VIDEO_OPTION) > 0:
-                    frame = observations_to_image(observations[i], infos[i])
-                    frame = append_text_to_image(
-                        frame, current_episodes[i].instruction.instruction_text
-                    )
-                    rgb_frames[i].append(frame)
-
-                if not dones[i]:
-                    continue
-
-                stats_episodes[current_episodes[i].episode_id] = infos[i]
-                observations[i] = self.envs.reset_at(i)[0]
-                prev_actions[i] = torch.zeros(1, dtype=torch.long)
-
-                if len(config.VIDEO_OPTION) > 0:
-                    generate_video(
-                        video_option=config.VIDEO_OPTION,
-                        video_dir=config.VIDEO_DIR,
-                        images=rgb_frames[i],
-                        episode_id=current_episodes[i].episode_id,
-                        checkpoint_idx=checkpoint_index,
-                        metrics={
-                            "spl": stats_episodes[current_episodes[i].episode_id]["spl"]
-                        },
-                        tb_writer=writer,
-                    )
-
-                    del stats_episodes[current_episodes[i].episode_id]["top_down_map"]
-                    del stats_episodes[current_episodes[i].episode_id]["collisions"]
-                    rgb_frames[i] = []
-
-            observations = transform_obs(
-                observations, config.TASK_CONFIG.TASK.INSTRUCTION_SENSOR_UUID
-            )
-            batch = batch_obs(observations, self.device)
-
-            envs_to_pause = []
-            next_episodes = self.envs.current_episodes()
-
-            for i in range(self.envs.num_envs):
-                if next_episodes[i].episode_id in stats_episodes:
-                    envs_to_pause.append(i)
-
-            (
-                self.envs,
-                eval_recurrent_hidden_states,
-                not_done_masks,
-                prev_actions,
-                batch,
-            ) = self._pause_envs(
-                envs_to_pause,
-                self.envs,
-                eval_recurrent_hidden_states,
-                not_done_masks,
-                prev_actions,
-                batch,
-            )
-
-        self.envs.close()
-
-        aggregated_stats = {}
-        num_episodes = len(stats_episodes)
-        for stat_key in next(iter(stats_episodes.values())).keys():
-            aggregated_stats[stat_key] = (
-                sum([v[stat_key] for v in stats_episodes.values()]) / num_episodes
-            )
-
-        split = config.TASK_CONFIG.DATASET.SPLIT
-        with open(f"stats_ckpt_{checkpoint_index}_{split}.json", "w") as f:
-            json.dump(aggregated_stats, f, indent=4)
-
-        logger.info(f"Episodes evaluated: {num_episodes}")
-        checkpoint_num = checkpoint_index + 1
-        for k, v in aggregated_stats.items():
-            logger.info(f"Average episode {k}: {v:.6f}")
-            writer.add_scalar(f"eval_{split}_{k}", v, checkpoint_num)
-
-    def inference(self) -> None:
-        r"""Runs inference on a single checkpoint, creating a path predictions file."""
-
-        checkpoint_path = self.config.INFERENCE.CKPT_PATH
-        logger.info(f"checkpoint_path: {checkpoint_path}")
-
-        if self.config.INFERENCE.USE_CKPT_CONFIG:
-            config = self._setup_eval_config(
-                self.load_checkpoint(checkpoint_path, map_location="cpu")["config"]
-            )
-        else:
-            config = self.config.clone()
-
-        config.defrost()
-        config.TASK_CONFIG.DATASET.SPLIT = self.config.INFERENCE.SPLIT
-        config.TASK_CONFIG.ENVIRONMENT.ITERATOR_OPTIONS.SHUFFLE = False
-        config.TASK_CONFIG.ENVIRONMENT.ITERATOR_OPTIONS.MAX_SCENE_REPEAT_STEPS = -1
-        config.TASK_CONFIG.TASK.MEASUREMENTS = []
-        config.TASK_CONFIG.TASK.SENSORS = ["INSTRUCTION_SENSOR"]
-        config.ENV_NAME = "VLNCEInferenceEnv"
-        config.freeze()
-
-        # setup agent
-        self.envs = construct_envs_auto_reset_false(
-            config, get_env_class(config.ENV_NAME)
-        )
-        self.device = (
-            torch.device("cuda", config.TORCH_GPU_ID)
-            if torch.cuda.is_available()
-            else torch.device("cpu")
-        )
-
-        self._setup_actor_critic_agent(config.MODEL, True, checkpoint_path)
-        self.actor_critic.eval()
-
-        observations = self.envs.reset()
-        observations = transform_obs(
-            observations, config.TASK_CONFIG.TASK.INSTRUCTION_SENSOR_UUID
-        )
-        batch = batch_obs(observations, self.device)
-
-        rnn_states = torch.zeros(
-            self.actor_critic.net.num_recurrent_layers,
-            config.NUM_PROCESSES,
-            config.MODEL.STATE_ENCODER.hidden_size,
-            device=self.device,
-        )
-        prev_actions = torch.zeros(
-            config.NUM_PROCESSES, 1, device=self.device, dtype=torch.long
-        )
-        not_done_masks = torch.zeros(config.NUM_PROCESSES, 1, device=self.device)
-
-        episode_predictions = defaultdict(list)
-
-        # populate episode_predictions with the starting state
-        current_episodes = self.envs.current_episodes()
-        for i in range(self.envs.num_envs):
-            episode_predictions[current_episodes[i].episode_id].append(
-                self.envs.call_at(i, "get_info", {"observations": {}})
-            )
-
-        with tqdm.tqdm(
-            total=sum(self.envs.count_episodes()),
-            desc=f"[inference:{self.config.INFERENCE.SPLIT}]",
-        ) as pbar:
-            while self.envs.num_envs > 0:
-                current_episodes = self.envs.current_episodes()
-
-                with torch.no_grad():
-                    (_, actions, _, rnn_states) = self.actor_critic.act(
-                        batch,
-                        rnn_states,
-                        prev_actions,
-                        not_done_masks,
-                        deterministic=True,
-                    )
-                    prev_actions.copy_(actions)
-
-                outputs = self.envs.step([a[0].item() for a in actions])
-                observations, _, dones, infos = [list(x) for x in zip(*outputs)]
-
-                not_done_masks = torch.tensor(
-                    [[0.0] if done else [1.0] for done in dones],
-                    dtype=torch.float,
-                    device=self.device,
-                )
-
-                # reset envs and observations if necessary
-                for i in range(self.envs.num_envs):
-                    episode_predictions[current_episodes[i].episode_id].append(infos[i])
-                    if not dones[i]:
-                        continue
-
-                    observations[i] = self.envs.reset_at(i)[0]
-                    prev_actions[i] = torch.zeros(1, dtype=torch.long)
-                    pbar.update(1)
-
-                observations = transform_obs(
-                    observations, config.TASK_CONFIG.TASK.INSTRUCTION_SENSOR_UUID
-                )
-                batch = batch_obs(observations, self.device)
-
-                envs_to_pause = []
-                next_episodes = self.envs.current_episodes()
-                for i in range(self.envs.num_envs):
-                    if not dones[i]:
-                        continue
-
-                    if next_episodes[i].episode_id in episode_predictions:
-                        envs_to_pause.append(i)
-                    else:
-                        episode_predictions[next_episodes[i].episode_id].append(
-                            self.envs.call_at(i, "get_info", {"observations": {}})
-                        )
-
-                (
-                    self.envs,
-                    rnn_states,
-                    not_done_masks,
-                    prev_actions,
-                    batch,
-                ) = self._pause_envs(
-                    envs_to_pause,
-                    self.envs,
-                    rnn_states,
-                    not_done_masks,
-                    prev_actions,
-                    batch,
-                )
-
-        self.envs.close()
-
-        with open(config.INFERENCE.PREDICTIONS_FILE, "w") as f:
-            json.dump(episode_predictions, f, indent=2)
-
-        logger.info(f"Predictions saved to: {config.INFERENCE.PREDICTIONS_FILE}")

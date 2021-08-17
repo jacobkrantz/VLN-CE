@@ -1,27 +1,22 @@
-from typing import Dict, List
-
-import torch
+from typing import Any, Dict, List
 
 
-def transform_obs(
-    observations: List[Dict], instruction_sensor_uuid: str
-) -> Dict[str, torch.Tensor]:
-    r"""Extracts instruction tokens from an instruction sensor and
-    transposes a batch of observation dicts to a dict of batched
-    observations.
-
-    Args:
-        observations:  list of dicts of observations.
-        instruction_sensor_uuid: name of the instructoin sensor to
-            extract from.
-        device: The torch.device to put the resulting tensors on.
-            Will not move the tensors if None
-
-    Returns:
-        transposed dict of lists of observations.
+def extract_instruction_tokens(
+    observations: List[Dict],
+    instruction_sensor_uuid: str,
+    tokens_uuid: str = "tokens",
+) -> Dict[str, Any]:
+    r"""Extracts instruction tokens from an instruction sensor if the tokens
+    exist and are in a dict structure.
     """
     for i in range(len(observations)):
-        observations[i][instruction_sensor_uuid] = observations[i][
-            instruction_sensor_uuid
-        ]["tokens"]
+        if (
+            isinstance(observations[i][instruction_sensor_uuid], dict)
+            and tokens_uuid in observations[i][instruction_sensor_uuid]
+        ):
+            observations[i][instruction_sensor_uuid] = observations[i][
+                instruction_sensor_uuid
+            ]["tokens"]
+        else:
+            break
     return observations

@@ -3,7 +3,7 @@ import json
 
 import torch
 import torch.nn as nn
-from habitat import Config, logger
+from habitat import Config
 
 
 class InstructionEncoder(nn.Module):
@@ -13,12 +13,7 @@ class InstructionEncoder(nn.Module):
 
         Args:
             config: must have
-                vocab_size: number of words in the vocabulary
                 embedding_size: The dimension of each embedding vector
-                use_pretrained_embeddings:
-                embedding_file:
-                fine_tune_embeddings:
-                dataset_vocab:
                 hidden_size: The hidden (output) size
                 rnn_type: The RNN cell type.  Must be GRU or LSTM
                 final_state_only: Whether or not to return just the final state
@@ -27,39 +22,35 @@ class InstructionEncoder(nn.Module):
 
         self.config = config
 
-        if self.config.use_pretrained_embeddings:
-            self.embedding_layer = nn.Embedding.from_pretrained(
-                embeddings=self._load_embeddings(),
-                freeze=not self.config.fine_tune_embeddings,
-            )
-        else:  # each embedding initialized to sampled Gaussian
-            self.embedding_layer = nn.Embedding(
-                num_embeddings=config.vocab_size,
-                embedding_dim=config.embedding_size,
-                padding_idx=0,
-            )
-
         rnn = nn.GRU if self.config.rnn_type == "GRU" else nn.LSTM
-        self.bidir = config.bidirectional
         self.encoder_rnn = rnn(
             input_size=config.embedding_size,
             hidden_size=config.hidden_size,
-            bidirectional=self.bidir,
+            bidirectional=config.bidirectional,
         )
-        self.final_state_only = config.final_state_only
+
+        if config.sensor_uuid == "instruction":
+            if self.config.use_pretrained_embeddings:
+                self.embedding_layer = nn.Embedding.from_pretrained(
+                    embeddings=self._load_embeddings(),
+                    freeze=not self.config.fine_tune_embeddings,
+                )
+            else:  # each embedding initialized to sampled Gaussian
+                self.embedding_layer = nn.Embedding(
+                    num_embeddings=config.vocab_size,
+                    embedding_dim=config.embedding_size,
+                    padding_idx=0,
+                )
 
     @property
     def output_size(self):
-        return self.config.hidden_size * (2 if self.bidir else 1)
+        return self.config.hidden_size * (1 + int(self.config.bidirectional))
 
     def _load_embeddings(self):
-        """ Loads word embeddings from a pretrained embeddings file.
-
+        """Loads word embeddings from a pretrained embeddings file.
         PAD: index 0. [0.0, ... 0.0]
         UNK: index 1. mean of all R2R word embeddings: [mean_0, ..., mean_n]
-        why UNK is averaged:
-            https://groups.google.com/forum/#!searchin/globalvectors/unk|sort:date/globalvectors/9w8ZADXJclA/hRdn4prm-XUJ
-
+        why UNK is averaged: https://bit.ly/3u3hkYg
         Returns:
             embeddings tensor of size [num_words x embedding_dim]
         """
@@ -74,13 +65,18 @@ class InstructionEncoder(nn.Module):
             lengths: [batch_size]
             hidden_state: [batch_size x hidden_size]
         """
-        instruction = observations["instruction"].long()
+        if self.config.sensor_uuid == "instruction":
+            instruction = observations["instruction"].long()
+            lengths = (instruction != 0.0).long().sum(dim=1)
+            instruction = self.embedding_layer(instruction)
+        else:
+            instruction = observations["rxr_instruction"]
 
-        lengths = (instruction != 0.0).long().sum(dim=1)
-        embedded = self.embedding_layer(instruction)
+        lengths = (instruction != 0.0).long().sum(dim=2)
+        lengths = (lengths != 0.0).long().sum(dim=1)
 
         packed_seq = nn.utils.rnn.pack_padded_sequence(
-            embedded, lengths, batch_first=True, enforce_sorted=False
+            instruction, lengths, batch_first=True, enforce_sorted=False
         )
 
         output, final_state = self.encoder_rnn(packed_seq)
@@ -88,7 +84,7 @@ class InstructionEncoder(nn.Module):
         if self.config.rnn_type == "LSTM":
             final_state = final_state[0]
 
-        if self.final_state_only:
+        if self.config.final_state_only:
             return final_state.squeeze(0)
         else:
             return nn.utils.rnn.pad_packed_sequence(output, batch_first=True)[

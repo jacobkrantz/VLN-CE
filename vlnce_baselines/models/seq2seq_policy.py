@@ -1,26 +1,32 @@
-import abc
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from gym import Space
 from habitat import Config
-from habitat_baselines.rl.models.rnn_state_encoder import RNNStateEncoder
+from habitat_baselines.common.baseline_registry import BaselineRegistry
+from habitat_baselines.rl.models.rnn_state_encoder import (
+    build_rnn_state_encoder,
+)
 from habitat_baselines.rl.ppo.policy import Net
 
 from vlnce_baselines.common.aux_losses import AuxLosses
-from vlnce_baselines.models.encoders.instruction_encoder import InstructionEncoder
+from vlnce_baselines.models.encoders.instruction_encoder import (
+    InstructionEncoder,
+)
 from vlnce_baselines.models.encoders.resnet_encoders import (
     TorchVisionResNet50,
     VlnResnetDepthEncoder,
 )
-from vlnce_baselines.models.encoders.simple_cnns import SimpleDepthCNN, SimpleRGBCNN
-from vlnce_baselines.models.policy import BasePolicy
+from vlnce_baselines.models.policy import ILPolicy
 
 
-class Seq2SeqPolicy(BasePolicy):
+@BaselineRegistry.register_policy
+class Seq2SeqPolicy(ILPolicy):
     def __init__(
-        self, observation_space: Space, action_space: Space, model_config: Config
+        self,
+        observation_space: Space,
+        action_space: Space,
+        model_config: Config,
     ):
         super().__init__(
             Seq2SeqNet(
@@ -29,6 +35,20 @@ class Seq2SeqPolicy(BasePolicy):
                 num_actions=action_space.n,
             ),
             action_space.n,
+        )
+
+    @classmethod
+    def from_config(
+        cls, config: Config, observation_space: Space, action_space: Space
+    ):
+        config.defrost()
+        config.MODEL.TORCH_GPU_ID = config.TORCH_GPU_ID
+        config.freeze()
+
+        return cls(
+            observation_space=observation_space,
+            action_space=action_space,
+            model_config=config.MODEL,
         )
 
 
@@ -43,49 +63,41 @@ class Seq2SeqNet(Net):
         RNN state encoder
     """
 
-    def __init__(self, observation_space: Space, model_config: Config, num_actions):
+    def __init__(
+        self, observation_space: Space, model_config: Config, num_actions
+    ):
         super().__init__()
         self.model_config = model_config
 
         # Init the instruction encoder
-        self.instruction_encoder = InstructionEncoder(model_config.INSTRUCTION_ENCODER)
+        self.instruction_encoder = InstructionEncoder(
+            model_config.INSTRUCTION_ENCODER
+        )
 
         # Init the depth encoder
         assert model_config.DEPTH_ENCODER.cnn_type in [
-            "SimpleDepthCNN",
-            "VlnResnetDepthEncoder",
-        ], "DEPTH_ENCODER.cnn_type must be SimpleDepthCNN or VlnResnetDepthEncoder"
-        if model_config.DEPTH_ENCODER.cnn_type == "SimpleDepthCNN":
-            self.depth_encoder = SimpleDepthCNN(
-                observation_space, model_config.DEPTH_ENCODER.output_size
-            )
-        elif model_config.DEPTH_ENCODER.cnn_type == "VlnResnetDepthEncoder":
-            self.depth_encoder = VlnResnetDepthEncoder(
-                observation_space,
-                output_size=model_config.DEPTH_ENCODER.output_size,
-                checkpoint=model_config.DEPTH_ENCODER.ddppo_checkpoint,
-                backbone=model_config.DEPTH_ENCODER.backbone,
-            )
+            "VlnResnetDepthEncoder"
+        ], "DEPTH_ENCODER.cnn_type must be VlnResnetDepthEncoder"
+        self.depth_encoder = VlnResnetDepthEncoder(
+            observation_space,
+            output_size=model_config.DEPTH_ENCODER.output_size,
+            checkpoint=model_config.DEPTH_ENCODER.ddppo_checkpoint,
+            backbone=model_config.DEPTH_ENCODER.backbone,
+        )
 
         # Init the RGB visual encoder
         assert model_config.RGB_ENCODER.cnn_type in [
-            "SimpleRGBCNN",
-            "TorchVisionResNet50",
-        ], "RGB_ENCODER.cnn_type must be either 'SimpleRGBCNN' or 'TorchVisionResNet50'."
+            "TorchVisionResNet50"
+        ], "RGB_ENCODER.cnn_type must be TorchVisionResNet50"
 
-        if model_config.RGB_ENCODER.cnn_type == "SimpleRGBCNN":
-            self.rgb_encoder = SimpleRGBCNN(
-                observation_space, model_config.RGB_ENCODER.output_size
-            )
-        elif model_config.RGB_ENCODER.cnn_type == "TorchVisionResNet50":
-            device = (
-                torch.device("cuda", model_config.TORCH_GPU_ID)
-                if torch.cuda.is_available()
-                else torch.device("cpu")
-            )
-            self.rgb_encoder = TorchVisionResNet50(
-                observation_space, model_config.RGB_ENCODER.output_size, device
-            )
+        device = (
+            torch.device("cuda", model_config.TORCH_GPU_ID)
+            if torch.cuda.is_available()
+            else torch.device("cpu")
+        )
+        self.rgb_encoder = TorchVisionResNet50(
+            observation_space, model_config.RGB_ENCODER.output_size, device
+        )
 
         if model_config.SEQ2SEQ.use_prev_action:
             self.prev_action_embedding = nn.Embedding(num_actions + 1, 32)
@@ -100,11 +112,11 @@ class Seq2SeqNet(Net):
         if model_config.SEQ2SEQ.use_prev_action:
             rnn_input_size += self.prev_action_embedding.embedding_dim
 
-        self.state_encoder = RNNStateEncoder(
+        self.state_encoder = build_rnn_state_encoder(
             input_size=rnn_input_size,
             hidden_size=model_config.STATE_ENCODER.hidden_size,
-            num_layers=1,
             rnn_type=model_config.STATE_ENCODER.rnn_type,
+            num_layers=1,
         )
 
         self.progress_monitor = nn.Linear(
@@ -128,10 +140,12 @@ class Seq2SeqNet(Net):
         return self.state_encoder.num_recurrent_layers
 
     def _init_layers(self):
-        nn.init.kaiming_normal_(self.progress_monitor.weight, nonlinearity="tanh")
+        nn.init.kaiming_normal_(
+            self.progress_monitor.weight, nonlinearity="tanh"
+        )
         nn.init.constant_(self.progress_monitor.bias, 0)
 
-    def forward(self, observations, rnn_hidden_states, prev_actions, masks):
+    def forward(self, observations, rnn_states, prev_actions, masks):
         r"""
         instruction_embedding: [batch_size x INSTRUCTION_ENCODER.output_size]
         depth_embedding: [batch_size x DEPTH_ENCODER.output_size]
@@ -148,7 +162,9 @@ class Seq2SeqNet(Net):
         if self.model_config.ablate_rgb:
             rgb_embedding = rgb_embedding * 0
 
-        x = torch.cat([instruction_embedding, depth_embedding, rgb_embedding], dim=1)
+        x = torch.cat(
+            [instruction_embedding, depth_embedding, rgb_embedding], dim=1
+        )
 
         if self.model_config.SEQ2SEQ.use_prev_action:
             prev_actions_embedding = self.prev_action_embedding(
@@ -156,12 +172,14 @@ class Seq2SeqNet(Net):
             )
             x = torch.cat([x, prev_actions_embedding], dim=1)
 
-        x, rnn_hidden_states = self.state_encoder(x, rnn_hidden_states, masks)
+        x, rnn_states_out = self.state_encoder(x, rnn_states, masks)
 
         if self.model_config.PROGRESS_MONITOR.use and AuxLosses.is_active():
             progress_hat = torch.tanh(self.progress_monitor(x))
             progress_loss = F.mse_loss(
-                progress_hat.squeeze(1), observations["progress"], reduction="none"
+                progress_hat.squeeze(1),
+                observations["progress"],
+                reduction="none",
             )
             AuxLosses.register_loss(
                 "progress_monitor",
@@ -169,4 +187,4 @@ class Seq2SeqNet(Net):
                 self.model_config.PROGRESS_MONITOR.alpha,
             )
 
-        return x, rnn_hidden_states
+        return x, rnn_states_out

@@ -2,15 +2,14 @@ import abc
 from typing import Any
 
 from habitat_baselines.rl.ppo.policy import Policy
-from habitat_baselines.utils.common import (
-    CategoricalNet,
-    CustomFixedCategorical,
-)
+from habitat_baselines.utils.common import CategoricalNet
+
+from vlnce_baselines.models.utils import CustomFixedCategorical
 
 
 class ILPolicy(Policy, metaclass=abc.ABCMeta):
     def __init__(self, net, dim_actions):
-        r"""Defines an imitation learning policy as having functions act() and
+        """Defines an imitation learning policy as having functions act() and
         build_distribution().
         """
         super(Policy, self).__init__()
@@ -27,13 +26,13 @@ class ILPolicy(Policy, metaclass=abc.ABCMeta):
     def act(
         self,
         observations,
-        rnn_hidden_states,
+        rnn_states,
         prev_actions,
         masks,
         deterministic=False,
     ):
-        features, rnn_hidden_states = self.net(
-            observations, rnn_hidden_states, prev_actions, masks
+        features, rnn_states = self.net(
+            observations, rnn_states, prev_actions, masks
         )
         distribution = self.action_distribution(features)
 
@@ -42,7 +41,7 @@ class ILPolicy(Policy, metaclass=abc.ABCMeta):
         else:
             action = distribution.sample()
 
-        return action, rnn_hidden_states
+        return action, rnn_states
 
     def get_value(self, *args: Any, **kwargs: Any):
         raise NotImplementedError
@@ -51,9 +50,9 @@ class ILPolicy(Policy, metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     def build_distribution(
-        self, observations, rnn_hidden_states, prev_actions, masks
+        self, observations, rnn_states, prev_actions, masks
     ) -> CustomFixedCategorical:
-        features, rnn_hidden_states = self.net(
-            observations, rnn_hidden_states, prev_actions, masks
+        features, rnn_states = self.net(
+            observations, rnn_states, prev_actions, masks
         )
         return self.action_distribution(features)

@@ -1,4 +1,4 @@
-# Copied from https://github.com/facebookresearch/habitat-lab/blob/v0.1.4/habitat/tasks/nav/shortest_path_follower.py
+# Modified from https://github.com/facebookresearch/habitat-lab/blob/v0.1.4/habitat/tasks/nav/shortest_path_follower.py
 # Use the Habitat v0.1.4 ShortestPathFollower for compatibility with
 # the dataset generation oracle.
 
@@ -23,7 +23,7 @@ def action_to_one_hot(action: int) -> np.array:
 
 
 class ShortestPathFollowerCompat:
-    r"""Utility class for extracting the action on the shortest path to the
+    """Utility class for extracting the action on the shortest path to the
         goal.
     Args:
         sim: HabitatSim instance.
@@ -181,7 +181,7 @@ class ShortestPathFollowerCompat:
 
     @mode.setter
     def mode(self, new_mode: str):
-        r"""Sets the mode for how the greedy follower determines the best next
+        """Sets the mode for how the greedy follower determines the best next
             step.
         Args:
             new_mode: geodesic_path indicates using the simulator's shortest

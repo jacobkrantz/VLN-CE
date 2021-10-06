@@ -15,7 +15,7 @@ SIMULATOR:
     HFOV: 90
     TYPE: HabitatSimRGBSensor
   DEPTH_SENSOR:
-    WIDTH: 256  # pretrained DDPPO resnet needs 256x256
+    WIDTH: 256
     HEIGHT: 256
 TASK:
   TYPE: VLN-v0

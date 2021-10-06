@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import os
 import random
 
 import numpy as np
@@ -43,18 +44,18 @@ def main():
 
 
 def run_exp(exp_config: str, run_type: str, opts=None) -> None:
-    r"""Runs experiment given mode and config
+    """Runs experiment given mode and config
 
     Args:
         exp_config: path to config file.
         run_type: "train" or "eval.
         opts: list of strings of additional config options.
-
-    Returns:
-        None.
     """
     config = get_config(exp_config, opts)
     logger.info(f"config: {config}")
+    logdir = "/".join(config.LOG_FILE.split("/")[:-1])
+    if logdir:
+        os.makedirs(logdir, exist_ok=True)
     logger.add_filehandler(config.LOG_FILE)
 
     random.seed(config.TASK_CONFIG.SEED)
@@ -65,9 +66,11 @@ def run_exp(exp_config: str, run_type: str, opts=None) -> None:
     if torch.cuda.is_available():
         torch.set_num_threads(1)
 
-    if run_type == "eval" and config.EVAL.EVAL_NONLEARNING:
-        evaluate_agent(config)
-        return
+    if run_type == "eval":
+        torch.backends.cudnn.deterministic = True
+        if config.EVAL.EVAL_NONLEARNING:
+            evaluate_agent(config)
+            return
 
     if run_type == "inference" and config.INFERENCE.INFERENCE_NONLEARNING:
         nonlearning_inference(config)

@@ -2,7 +2,7 @@ import torch
 
 
 class _AuxLosses:
-    def __init__(self):
+    def __init__(self) -> None:
         self._losses = {}
         self._loss_alphas = {}
         self._is_active = False
@@ -34,7 +34,7 @@ class _AuxLosses:
     def is_active(self):
         return self._is_active
 
-    def activate(self):
+    def activate(self) -> None:
         self._is_active = True
 
     def deactivate(self):

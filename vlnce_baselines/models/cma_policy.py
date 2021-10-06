@@ -1,3 +1,5 @@
+from typing import Dict, Optional, Tuple
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -9,14 +11,12 @@ from habitat_baselines.rl.models.rnn_state_encoder import (
     build_rnn_state_encoder,
 )
 from habitat_baselines.rl.ppo.policy import Net
+from torch import Tensor
 
 from vlnce_baselines.common.aux_losses import AuxLosses
+from vlnce_baselines.models.encoders import resnet_encoders
 from vlnce_baselines.models.encoders.instruction_encoder import (
     InstructionEncoder,
-)
-from vlnce_baselines.models.encoders.resnet_encoders import (
-    TorchVisionResNet50,
-    VlnResnetDepthEncoder,
 )
 from vlnce_baselines.models.policy import ILPolicy
 
@@ -28,7 +28,7 @@ class CMAPolicy(ILPolicy):
         observation_space: Space,
         action_space: Space,
         model_config: Config,
-    ):
+    ) -> None:
         super().__init__(
             CMANet(
                 observation_space=observation_space,
@@ -42,10 +42,6 @@ class CMAPolicy(ILPolicy):
     def from_config(
         cls, config: Config, observation_space: Space, action_space: Space
     ):
-        config.defrost()
-        config.MODEL.TORCH_GPU_ID = config.TORCH_GPU_ID
-        config.freeze()
-
         return cls(
             observation_space=observation_space,
             action_space=action_space,
@@ -54,16 +50,13 @@ class CMAPolicy(ILPolicy):
 
 
 class CMANet(Net):
-    r"""A cross-modal attention (CMA) network that contains:
-    Instruction encoder
-    Depth encoder
-    RGB encoder
-    CMA state encoder
+    """An implementation of the cross-modal attention (CMA) network in
+    https://arxiv.org/abs/2004.02857
     """
 
     def __init__(
-        self, observation_space: Space, model_config: Config, num_actions
-    ):
+        self, observation_space: Space, model_config: Config, num_actions: int
+    ) -> None:
         super().__init__()
         self.model_config = model_config
         model_config.defrost()
@@ -76,31 +69,29 @@ class CMANet(Net):
         )
 
         # Init the depth encoder
-        assert model_config.DEPTH_ENCODER.cnn_type in [
-            "VlnResnetDepthEncoder"
-        ], "DEPTH_ENCODER.cnn_type must be VlnResnetDepthEncoder"
-        self.depth_encoder = VlnResnetDepthEncoder(
+        assert model_config.DEPTH_ENCODER.cnn_type in ["VlnResnetDepthEncoder"]
+        self.depth_encoder = getattr(
+            resnet_encoders, model_config.DEPTH_ENCODER.cnn_type
+        )(
             observation_space,
             output_size=model_config.DEPTH_ENCODER.output_size,
             checkpoint=model_config.DEPTH_ENCODER.ddppo_checkpoint,
             backbone=model_config.DEPTH_ENCODER.backbone,
+            trainable=model_config.DEPTH_ENCODER.trainable,
             spatial_output=True,
         )
 
-        # Init the RGB encoder
+        # Init the RGB visual encoder
         assert model_config.RGB_ENCODER.cnn_type in [
-            "TorchVisionResNet50"
-        ], "RGB_ENCODER.cnn_type must be TorchVisionResNet50"
-
-        device = (
-            torch.device("cuda", model_config.TORCH_GPU_ID)
-            if torch.cuda.is_available()
-            else torch.device("cpu")
-        )
-        self.rgb_encoder = TorchVisionResNet50(
-            observation_space,
+            "TorchVisionResNet18",
+            "TorchVisionResNet50",
+        ]
+        self.rgb_encoder = getattr(
+            resnet_encoders, model_config.RGB_ENCODER.cnn_type
+        )(
             model_config.RGB_ENCODER.output_size,
-            device,
+            normalize_visual_inputs=model_config.normalize_rgb,
+            trainable=model_config.RGB_ENCODER.trainable,
             spatial_output=True,
         )
 
@@ -193,27 +184,29 @@ class CMANet(Net):
         self.train()
 
     @property
-    def output_size(self):
+    def output_size(self) -> int:
         return self._output_size
 
     @property
-    def is_blind(self):
+    def is_blind(self) -> bool:
         return self.rgb_encoder.is_blind or self.depth_encoder.is_blind
 
     @property
-    def num_recurrent_layers(self):
+    def num_recurrent_layers(self) -> int:
         return self.state_encoder.num_recurrent_layers + (
             self.second_state_encoder.num_recurrent_layers
         )
 
-    def _init_layers(self):
+    def _init_layers(self) -> None:
         if self.model_config.PROGRESS_MONITOR.use:
             nn.init.kaiming_normal_(
                 self.progress_monitor.weight, nonlinearity="tanh"
             )
             nn.init.constant_(self.progress_monitor.bias, 0)
 
-    def _attn(self, q, k, v, mask=None):
+    def _attn(
+        self, q: Tensor, k: Tensor, v: Tensor, mask: Optional[Tensor] = None
+    ) -> Tensor:
         logits = torch.einsum("nc, nci -> ni", q, k)
 
         if mask is not None:
@@ -223,12 +216,13 @@ class CMANet(Net):
 
         return torch.einsum("ni, nci -> nc", attn, v)
 
-    def forward(self, observations, rnn_states, prev_actions, masks):
-        r"""
-        instruction_embedding: [batch_size x INSTRUCTION_ENCODER.output_size]
-        depth_embedding: [batch_size x DEPTH_ENCODER.output_size]
-        rgb_embedding: [batch_size x RGB_ENCODER.output_size]
-        """
+    def forward(
+        self,
+        observations: Dict[str, Tensor],
+        rnn_states: Tensor,
+        prev_actions: Tensor,
+        masks: Tensor,
+    ) -> Tuple[Tensor, Tensor]:
         instruction_embedding = self.instruction_encoder(observations)
         depth_embedding = self.depth_encoder(observations)
         depth_embedding = torch.flatten(depth_embedding, 2)

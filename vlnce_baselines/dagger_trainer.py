@@ -14,8 +14,6 @@ from habitat_baselines.common.baseline_registry import baseline_registry
 from habitat_baselines.common.environments import get_env_class
 from habitat_baselines.common.obs_transformers import (
     apply_obs_transforms_batch,
-    apply_obs_transforms_obs_space,
-    get_active_obs_transforms,
 )
 from habitat_baselines.common.tensorboard_utils import TensorboardWriter
 from habitat_baselines.utils.common import batch_obs
@@ -301,15 +299,15 @@ class DaggerTrainer(BaseVLNCETrainer):
 
         rgb_features = None
         rgb_hook = None
-        if self.config.MODEL.RGB_ENCODER.cnn_type == "TorchVisionResNet50":
+        if not self.config.MODEL.RGB_ENCODER.trainable:
             rgb_features = torch.zeros((1,), device="cpu")
-            rgb_hook = self.policy.net.rgb_encoder.layer_extract.register_forward_hook(
+            rgb_hook = self.policy.net.rgb_encoder.cnn.register_forward_hook(
                 hook_builder(rgb_features)
             )
 
         depth_features = None
         depth_hook = None
-        if self.config.MODEL.DEPTH_ENCODER.cnn_type == "VlnResnetDepthEncoder":
+        if not self.config.MODEL.DEPTH_ENCODER.trainable:
             depth_features = torch.zeros((1,), device="cpu")
             depth_hook = self.policy.net.depth_encoder.visual_encoder.register_forward_hook(
                 hook_builder(depth_features)
@@ -469,11 +467,7 @@ class DaggerTrainer(BaseVLNCETrainer):
             depth_hook.remove()
 
     def train(self) -> None:
-        r"""Main method for training DAgger.
-
-        Returns:
-            None
-        """
+        """Main method for training DAgger."""
         if self.config.IL.DAGGER.preload_lmdb_features:
             try:
                 lmdb.open(self.lmdb_features_dir, readonly=True)
@@ -489,17 +483,11 @@ class DaggerTrainer(BaseVLNCETrainer):
             ) as lmdb_env, lmdb_env.begin(write=True) as txn:
                 txn.drop(lmdb_env.open_db())
 
-        split = self.config.TASK_CONFIG.DATASET.SPLIT
+        EPS = self.config.IL.DAGGER.expert_policy_sensor
+        if EPS not in self.config.TASK_CONFIG.TASK.SENSORS:
+            self.config.TASK_CONFIG.TASK.SENSORS.append(EPS)
+
         self.config.defrost()
-        self.config.TASK_CONFIG.TASK.NDTW.SPLIT = split
-        self.config.TASK_CONFIG.TASK.SDTW.SPLIT = split
-        if (
-            self.config.IL.DAGGER.expert_policy_sensor
-            not in self.config.TASK_CONFIG.TASK.SENSORS
-        ):
-            self.config.TASK_CONFIG.TASK.SENSORS.append(
-                self.config.IL.DAGGER.expert_policy_sensor
-            )
 
         # if doing teacher forcing, don't switch the scene until it is complete
         if self.config.IL.DAGGER.p == 1.0:
@@ -508,21 +496,7 @@ class DaggerTrainer(BaseVLNCETrainer):
             )
         self.config.freeze()
 
-        # Extract the observation and action space.
-        single_proc_config = self.config.clone()
-        single_proc_config.defrost()
-        single_proc_config.NUM_ENVIRONMENTS = 1
-        single_proc_config.freeze()
-        with construct_envs(
-            single_proc_config, get_env_class(self.config.ENV_NAME)
-        ) as envs:
-            observation_space = envs.observation_spaces[0]
-            action_space = envs.action_spaces[0]
-
-        self.obs_transforms = get_active_obs_transforms(self.config)
-        observation_space = apply_obs_transforms_obs_space(
-            observation_space, self.obs_transforms
-        )
+        observation_space, action_space = self._get_spaces(self.config)
 
         self._initialize_policy(
             self.config,

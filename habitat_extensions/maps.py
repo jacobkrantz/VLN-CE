@@ -12,21 +12,24 @@ cv2 = try_cv2_import()
 AGENT_SPRITE = habitat_maps.AGENT_SPRITE
 
 MAP_THICKNESS_SCALAR: int = 128
+
 MAP_INVALID_POINT = 0
 MAP_VALID_POINT = 1
 MAP_BORDER_INDICATOR = 2
-MAP_SOURCE_POINT_INDICATOR = 3
-MAP_TARGET_POINT_INDICATOR = 4
-MAP_MP3D_WAYPOINT = 5
-MAP_VIEW_POINT_INDICATOR = 6
-MAP_TARGET_BOUNDING_BOX = 7
-MAP_REFERENCE_POINT = 8
-MAP_MP3D_REFERENCE_PATH = 9
-MAP_SHORTEST_PATH_WAYPOINT = 10
+MAP_SOURCE_POINT_INDICATOR = 4
+MAP_TARGET_POINT_INDICATOR = 6
+MAP_MP3D_WAYPOINT = 7
+MAP_VIEW_POINT_INDICATOR = 8
+MAP_TARGET_BOUNDING_BOX = 9
+MAP_REFERENCE_POINT = 10
+MAP_MP3D_REFERENCE_PATH = 11
+MAP_WAYPOINT_PREDICTION = 12
+MAP_ORACLE_WAYPOINT = 13
+MAP_SHORTEST_PATH_WAYPOINT = 14
 
 TOP_DOWN_MAP_COLORS = np.full((256, 3), 150, dtype=np.uint8)
-TOP_DOWN_MAP_COLORS[12:] = cv2.applyColorMap(
-    np.arange(244, dtype=np.uint8), cv2.COLORMAP_JET
+TOP_DOWN_MAP_COLORS[15:] = cv2.applyColorMap(
+    np.arange(241, dtype=np.uint8), cv2.COLORMAP_JET
 ).squeeze(1)[:, ::-1]
 TOP_DOWN_MAP_COLORS[MAP_INVALID_POINT] = [255, 255, 255]  # White
 TOP_DOWN_MAP_COLORS[MAP_VALID_POINT] = [150, 150, 150]  # Light Grey
@@ -38,6 +41,8 @@ TOP_DOWN_MAP_COLORS[MAP_VIEW_POINT_INDICATOR] = [245, 150, 150]  # Light Red
 TOP_DOWN_MAP_COLORS[MAP_TARGET_BOUNDING_BOX] = [0, 175, 0]  # Dark Green
 TOP_DOWN_MAP_COLORS[MAP_REFERENCE_POINT] = [0, 0, 0]  # Black
 TOP_DOWN_MAP_COLORS[MAP_MP3D_REFERENCE_PATH] = [0, 0, 0]  # Black
+TOP_DOWN_MAP_COLORS[MAP_WAYPOINT_PREDICTION] = [255, 255, 0]  # Yellow
+TOP_DOWN_MAP_COLORS[MAP_ORACLE_WAYPOINT] = [255, 165, 0]  # Orange
 TOP_DOWN_MAP_COLORS[MAP_SHORTEST_PATH_WAYPOINT] = [0, 150, 0]  # Dark Green
 
 
@@ -58,14 +63,14 @@ def colorize_topdown_map(
     fog_of_war_mask: Optional[np.ndarray] = None,
     fog_of_war_desat_amount: float = 0.5,
 ) -> np.ndarray:
-    r"""Same as `maps.colorize_topdown_map` in Habitat-Lab, but with different map
+    """Same as `maps.colorize_topdown_map` in Habitat-Lab, but with different
     colors.
     """
     _map = TOP_DOWN_MAP_COLORS[top_down_map]
 
     if fog_of_war_mask is not None:
         fog_of_war_desat_values = np.array([[fog_of_war_desat_amount], [1.0]])
-        # Only desaturate things that are valid points as only valid points get revealed
+        # Only desaturate valid points as only valid points get revealed
         desat_mask = top_down_map != MAP_INVALID_POINT
 
         _map[desat_mask] = (
@@ -80,12 +85,13 @@ def static_to_grid(
     realworld_y: float,
     grid_resolution: Tuple[int, int],
     bounds: Dict[str, Tuple[float, float]],
-):
-    r"""Return gridworld index of realworld coordinates assuming top-left corner
-    is the origin. The real world coordinates of lower left corner are
+) -> Tuple[int, int]:
+    """Return gridworld index of realworld coordinates assuming top-left
+    corner is the origin. The real world coordinates of lower left corner are
     (coordinate_min, coordinate_min) and of top right corner are
-    (coordinate_max, coordinate_max). Same as the habitat-Lab maps.to_grid function
-    but with a static `bounds` instead of requiring a SIM/pathfinder instance.
+    (coordinate_max, coordinate_max). Same as the habitat-Lab maps.to_grid
+    function but with a static `bounds` instead of requiring a simulator or
+    pathfinder instance.
     """
     grid_size = (
         abs(bounds["upper"][2] - bounds["lower"][2]) / grid_resolution[0],
@@ -149,14 +155,30 @@ def drawpoint(
     ] = color
 
 
+def draw_triangle(
+    img: np.ndarray,
+    centroid: Union[Tuple[int], List[int]],
+    color: List[int],
+    meters_per_px: float,
+    pad: int = 0.35,
+) -> None:
+    point_padding = int(pad / meters_per_px)
+
+    # (Y, X)
+    left = (centroid[1] - point_padding, centroid[0] + point_padding)
+    right = (centroid[1] + point_padding, centroid[0] + point_padding)
+    top = (centroid[1], centroid[0] - point_padding)
+    cv2.drawContours(img, [np.array([left, right, top])], 0, color, -1)
+
+
 def draw_reference_path(
     img: np.ndarray,
     sim: Simulator,
     episode: VLNEpisode,
     map_resolution: int,
     meters_per_px: float,
-):
-    r"""Draws lines between each waypoint in the reference path."""
+) -> None:
+    """Draws lines between each waypoint in the reference path."""
     shortest_path_points = [
         habitat_maps.to_grid(
             p[2],
@@ -193,8 +215,8 @@ def draw_straight_shortest_path_points(
     sim: Simulator,
     map_resolution: int,
     shortest_path_points: List[List[float]],
-):
-    r"""Draws the shortest path from start to goal assuming a standard
+) -> None:
+    """Draws the shortest path from start to goal assuming a standard
     discrete action space.
     """
     shortest_path_points = [
@@ -212,7 +234,7 @@ def draw_straight_shortest_path_points(
 
 def draw_source_and_target(
     img: np.ndarray, sim: Simulator, episode: VLNEpisode, meters_per_px: float
-):
+) -> None:
     s_x, s_y = habitat_maps.to_grid(
         episode.start_position[2],
         episode.start_position[0],
@@ -229,6 +251,27 @@ def draw_source_and_target(
         sim,
     )
     drawpoint(img, (t_x, t_y), MAP_TARGET_POINT_INDICATOR, meters_per_px)
+
+
+def draw_waypoint_prediction(
+    img: np.ndarray,
+    waypoint: Union[Tuple[float], List[float]],
+    meters_per_px: float,
+    bounds: Dict[str, Tuple[float]],
+) -> None:
+    w_x, w_y = static_to_grid(waypoint[1], waypoint[0], img.shape[0:2], bounds)
+    if w_x < img.shape[0] and w_x > 0 and w_y < img.shape[1] and w_y > 0:
+        draw_triangle(img, (w_x, w_y), MAP_WAYPOINT_PREDICTION, meters_per_px)
+
+
+def draw_oracle_waypoint(
+    img: np.ndarray,
+    waypoint: Union[Tuple[float], List[float]],
+    meters_per_px: float,
+    bounds: Dict[str, Tuple[float]],
+) -> None:
+    w_x, w_y = static_to_grid(waypoint[1], waypoint[0], img.shape[0:2], bounds)
+    draw_triangle(img, (w_x, w_y), MAP_ORACLE_WAYPOINT, meters_per_px, pad=0.2)
 
 
 def get_nearest_node(graph: nx.Graph, current_position: List[float]) -> str:
@@ -252,7 +295,7 @@ def get_nearest_node(graph: nx.Graph, current_position: List[float]) -> str:
 
 
 def update_nearest_node(
-    graph: nx.Graph, nearest_node: str, current_position: np.array
+    graph: nx.Graph, nearest_node: str, current_position: np.ndarray
 ) -> str:
     """Determine the closest MP3D node to the agent's current position as
     given by a [x,z] position vector. The selected node must be reachable
@@ -281,7 +324,7 @@ def draw_mp3d_nodes(
     episode: VLNEpisode,
     graph: nx.Graph,
     meters_per_px: float,
-):
+) -> None:
     n = get_nearest_node(
         graph, (episode.start_position[0], episode.start_position[2])
     )
@@ -295,6 +338,6 @@ def draw_mp3d_nodes(
                 pos[2], pos[0], img.shape[0:2], sim
             )
 
-        # only paint if over a valid point
-        if img[r_x, r_y]:
-            drawpoint(img, (r_x, r_y), MAP_MP3D_WAYPOINT, meters_per_px)
+            # only paint if over a valid point
+            if img[r_x, r_y]:
+                drawpoint(img, (r_x, r_y), MAP_MP3D_WAYPOINT, meters_per_px)

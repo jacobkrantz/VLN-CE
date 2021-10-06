@@ -8,7 +8,7 @@ import jsonlines
 def merge_predictions(
     save_f: str, filenames: List[str], enforce_unique: bool = True
 ) -> None:
-    r"""Utility to merge multiple predictions files generated from running
+    """Utility to merge multiple predictions files generated from running
     inference. Useful for submitting predictins to the leaderboard where
     different models are used for different languages.
     """

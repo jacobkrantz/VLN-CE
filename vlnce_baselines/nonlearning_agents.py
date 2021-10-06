@@ -102,7 +102,7 @@ def nonlearning_inference(config: Config) -> None:
 
 
 class RandomAgent(Agent):
-    r"""Selects an action at each time step by sampling from the oracle action
+    """Selects an action at each time step by sampling from the oracle action
     distribution of the training set.
     """
 
@@ -126,7 +126,7 @@ class RandomAgent(Agent):
 
 
 class HandcraftedAgent(Agent):
-    r"""Agent picks a random heading and takes 37 forward actions (average
+    """Agent picks a random heading and takes 37 forward actions (average
     oracle path length) before calling stop.
     """
 

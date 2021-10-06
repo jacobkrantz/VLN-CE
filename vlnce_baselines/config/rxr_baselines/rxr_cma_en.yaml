@@ -10,7 +10,7 @@ RESULTS_DIR: data/checkpoints/rxr_cma_en/evals
 
 INFERENCE:
   SPLIT: test_challenge
-  LANGUAGES: [en-IN, en-IN]
+  LANGUAGES: [en-US, en-IN]
   SAMPLE: True
   USE_CKPT_CONFIG: False
   CKPT_PATH: data/checkpoints/ckpt.0.pth  # REPLACE THIS

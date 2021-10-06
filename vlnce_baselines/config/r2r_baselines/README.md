@@ -24,15 +24,15 @@ Experiments in this paper used the R2R data. Each experiment can be recreated fo
 | PM      | [Progress monitor](https://github.com/chihyaoma/selfmonitoring-agent)                            |
 | DA      | DAgger training (otherwise teacher forcing)                                                      |
 | Aug     | Uses the [EnvDrop](https://github.com/airsplay/R2R-EnvDrop) episodes to augment the training set |
-| ⟶       | Use the config on the left to train the model. Evaluate each checkpoint on `val_unseen`. The best checkpoint (according to `val_unseen` SPL) is then fine-tuned using the config on the right. Make sure to update the field `DAGGER.CKPT_TO_LOAD` before fine-tuning. |
+| ⟶       | Use the config on the left to train the model. Evaluate each checkpoint on `val_unseen`. The best checkpoint (according to `val_unseen` SPL) is then fine-tuned using the config on the right. Make sure to update the field `IL.ckpt_to_load` before fine-tuning. |
 
 ## Pretrained Models
 
-We provide pretrained models for our best Seq2Seq model [Seq2Seq_DA](https://drive.google.com/open?id=1gds-t8LAxuh236gk-5AWU0LzDg9rJmQS) and Cross-Modal Attention model [CMA_PM_DA_Aug](https://drive.google.com/open?id=199hhL9M0yiurB3Hb_-DrpMRxWP1lSGX3). These models are hosted on Google Drive and can be downloaded as such:
+We provide pretrained models for our best Seq2Seq model [Seq2Seq_DA](https://drive.google.com/open?id=14y7dXkAEwB_q81cDCow8JNKD2aAAPxbW) and Cross-Modal Attention model [CMA_PM_DA_Aug](https://drive.google.com/open?id=1xIxh5eUkjGzSL_3AwBqDQlNXjkFrpcg4). These models are hosted on Google Drive and can be downloaded as such:
 
 ```bash
 # CMA_PM_DA_Aug (141MB)
-gdown https://drive.google.com/uc?id=199hhL9M0yiurB3Hb_-DrpMRxWP1lSGX3
+gdown https://drive.google.com/uc?id=1xIxh5eUkjGzSL_3AwBqDQlNXjkFrpcg4
 # Seq2Seq_DA (135MB)
-gdown https://drive.google.com/uc?id=1gds-t8LAxuh236gk-5AWU0LzDg9rJmQS
+gdown https://drive.google.com/uc?id=14y7dXkAEwB_q81cDCow8JNKD2aAAPxbW
 ```

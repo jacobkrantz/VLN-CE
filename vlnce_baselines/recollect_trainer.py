@@ -11,10 +11,10 @@ from habitat_baselines.common.obs_transformers import (
     apply_obs_transforms_batch,
 )
 from habitat_baselines.common.tensorboard_utils import TensorboardWriter
+from habitat_baselines.rl.ddppo.algo.ddp_utils import is_slurm_batch_job
 
 from vlnce_baselines.common.aux_losses import AuxLosses
 from vlnce_baselines.common.base_il_trainer import BaseVLNCETrainer
-from vlnce_baselines.common.env_utils import is_slurm_batch_job
 from vlnce_baselines.common.recollection_dataset import (
     TeacherRecollectionDataset,
 )
@@ -27,10 +27,11 @@ with warnings.catch_warnings():
 
 @baseline_registry.register_trainer(name="recollect_trainer")
 class RecollectTrainer(BaseVLNCETrainer):
-    r"""A Teacher Forcing trainer that re-collects episodes from simulation
+    """A Teacher Forcing trainer that re-collects episodes from simulation
     rather than saving them all to disk. Included as starter code for the
     RxR-Habitat Challenge but can also train R2R agents.
     """
+
     supported_tasks: List[str] = ["VLN-v0"]
 
     def __init__(self, config=None):

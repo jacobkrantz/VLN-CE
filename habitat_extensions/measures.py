@@ -7,9 +7,12 @@ import numpy as np
 from dtw import dtw
 from fastdtw import fastdtw
 from habitat.config import Config
-from habitat.core.embodied_task import EmbodiedTask, Measure
+from habitat.core.dataset import Episode
+from habitat.core.embodied_task import Action, EmbodiedTask, Measure
+from habitat.core.logging import logger
 from habitat.core.registry import registry
 from habitat.core.simulator import Simulator
+from habitat.core.utils import try_cv2_import
 from habitat.tasks.nav.nav import DistanceToGoal, Success
 from habitat.tasks.utils import cartesian_to_polar
 from habitat.utils.geometry_utils import quaternion_rotate_vector
@@ -20,6 +23,8 @@ from numpy import ndarray
 from habitat_extensions import maps
 from habitat_extensions.task import RxRVLNCEDatasetV1
 
+cv2 = try_cv2_import()
+
 
 def euclidean_distance(
     pos_a: Union[List[float], ndarray], pos_b: Union[List[float], ndarray]
@@ -29,8 +34,7 @@ def euclidean_distance(
 
 @registry.register_measure
 class PathLength(Measure):
-    r"""Path Length (PL)
-
+    """Path Length (PL)
     PL = sum(geodesic_distance(agent_prev_position, agent_position)
             over all agent positions.
     """
@@ -58,10 +62,9 @@ class PathLength(Measure):
 
 @registry.register_measure
 class OracleNavigationError(Measure):
-    r"""Oracle Navigation Error (ONE)
-
-    ONE = min(geosdesic_distance(agent_pos, goal))
-            over all locations in the agent's path.
+    """Oracle Navigation Error (ONE)
+    ONE = min(geosdesic_distance(agent_pos, goal)) over all points in the
+    agent path.
     """
 
     cls_uuid: str = "oracle_navigation_error"
@@ -85,11 +88,7 @@ class OracleNavigationError(Measure):
 
 @registry.register_measure
 class OracleSuccess(Measure):
-    r"""Oracle Success Rate (OSR)
-
-    OSR = I(ONE <= goal_radius),
-    where ONE is Oracle Navigation Error.
-    """
+    """Oracle Success Rate (OSR). OSR = I(ONE <= goal_radius)"""
 
     cls_uuid: str = "oracle_success"
 
@@ -114,9 +113,8 @@ class OracleSuccess(Measure):
 
 @registry.register_measure
 class OracleSPL(Measure):
-    r"""OracleSPL (Oracle Success weighted by Path Length)
-
-    OracleSPL = max(SPL) over all points in the agent path
+    """OracleSPL (Oracle Success weighted by Path Length)
+    OracleSPL = max(SPL) over all points in the agent path.
     """
 
     cls_uuid: str = "oracle_spl"
@@ -135,7 +133,7 @@ class OracleSPL(Measure):
 
 @registry.register_measure
 class StepsTaken(Measure):
-    r"""Counts the number of times update_metric() is called. This is equal to
+    """Counts the number of times update_metric() is called. This is equal to
     the number of times that the agent takes an action. STOP counts as an
     action.
     """
@@ -153,13 +151,92 @@ class StepsTaken(Measure):
 
 
 @registry.register_measure
-class NDTW(Measure):
-    r"""NDTW (Normalized Dynamic Time Warping)
+class WaypointRewardMeasure(Measure):
+    """A reward measure used for training VLN-CE agents via RL."""
 
-    ref: Effective and General Evaluation for Instruction
-        Conditioned Navigation using Dynamic Time
-        Warping - Magalhaes et. al
-    https://arxiv.org/pdf/1907.05446.pdf
+    def __init__(
+        self, *args: Any, sim: Simulator, config: Config, **kwargs: Any
+    ) -> None:
+        self._sim = sim
+        self._slack_reward = config.slack_reward
+        self._use_distance_scaled_slack_reward = (
+            config.use_distance_scaled_slack_reward
+        )
+        self._scale_slack_on_prediction = config.scale_slack_on_prediction
+        self._success_reward = config.success_reward
+        self._distance_scalar = config.distance_scalar
+        self._prev_position = None
+        super().__init__()
+
+    def reset_metric(
+        self, *args: Any, task: EmbodiedTask, **kwargs: Any
+    ) -> None:
+        task.measurements.check_measure_dependencies(
+            self.uuid, [DistanceToGoal.cls_uuid, Success.cls_uuid]
+        )
+        self._previous_distance_to_goal = task.measurements.measures[
+            "distance_to_goal"
+        ].get_metric()
+        self._metric = 0.0
+        self._prev_position = np.take(
+            self._sim.get_agent_state().position, [0, 2]
+        )
+
+    def _get_scaled_slack_reward(self, action: Action) -> float:
+        if isinstance(action["action"], int):
+            return self._slack_reward
+
+        if not self._use_distance_scaled_slack_reward:
+            return self._slack_reward
+
+        agent_pos = np.take(self._sim.get_agent_state().position, [0, 2])
+        slack_distance = (
+            action["action_args"]["r"]
+            if self._scale_slack_on_prediction and action["action"] != "STOP"
+            else np.linalg.norm(self._prev_position - agent_pos)
+        )
+        scaled_slack_reward = self._slack_reward * slack_distance / 0.25
+        self._prev_position = agent_pos
+        return min(self._slack_reward, scaled_slack_reward)
+
+    def _progress_to_goal(self, task: EmbodiedTask) -> float:
+        distance_to_goal = task.measurements.measures[
+            "distance_to_goal"
+        ].get_metric()
+        distance_to_goal_delta = (
+            self._previous_distance_to_goal - distance_to_goal
+        )
+        if np.isnan(distance_to_goal_delta) or np.isinf(
+            distance_to_goal_delta
+        ):
+            l = self._sim.get_agent_state().position
+            logger.error(
+                f"\nNaN or inf encountered in distance measure. agent location: {l}",
+            )
+            distance_to_goal_delta = -1.0
+        self._previous_distance_to_goal = distance_to_goal
+        return self._distance_scalar * distance_to_goal_delta
+
+    def update_metric(
+        self, *args: Any, action: Action, task: EmbodiedTask, **kwargs: Any
+    ) -> None:
+        reward = self._get_scaled_slack_reward(action)
+        reward += self._progress_to_goal(task)
+        reward += (
+            self._success_reward
+            * task.measurements.measures["success"].get_metric()
+        )
+        self._metric = reward
+
+    @staticmethod
+    def _get_uuid(*args: Any, **kwargs: Any) -> str:
+        return "waypoint_reward_measure"
+
+
+@registry.register_measure
+class NDTW(Measure):
+    """NDTW (Normalized Dynamic Time Warping)
+    ref: https://arxiv.org/abs/1907.05446
     """
 
     cls_uuid: str = "ndtw"
@@ -216,12 +293,8 @@ class NDTW(Measure):
 
 @registry.register_measure
 class SDTW(Measure):
-    r"""SDTW (Success Weighted be nDTW)
-
-    ref: Effective and General Evaluation for Instruction
-        Conditioned Navigation using Dynamic Time
-        Warping - Magalhaes et. al
-    https://arxiv.org/pdf/1907.05446.pdf
+    """SDTW (Success Weighted be nDTW)
+    ref: https://arxiv.org/abs/1907.05446
     """
 
     cls_uuid: str = "sdtw"
@@ -243,7 +316,7 @@ class SDTW(Measure):
 
 @registry.register_measure
 class TopDownMapVLNCE(Measure):
-    r"""A top down map that optionally shows VLN-related visual information
+    """A top down map that optionally shows VLN-related visual information
     such as MP3D node locations and MP3D agent traversals.
     """
 
@@ -251,9 +324,15 @@ class TopDownMapVLNCE(Measure):
 
     def __init__(
         self, *args: Any, sim: Simulator, config: Config, **kwargs: Any
-    ):
+    ) -> None:
         self._sim = sim
         self._config = config
+        self._step_count = None
+        self._map_resolution = config.MAP_RESOLUTION
+        self._previous_xy_location = None
+        self._top_down_map = None
+        self._meters_per_pixel = None
+        self.current_node = ""
         with open(self._config.GRAPHS_FILE, "rb") as f:
             self._conn_graphs = pickle.load(f)
         super().__init__()
@@ -262,11 +341,11 @@ class TopDownMapVLNCE(Measure):
         return self.cls_uuid
 
     def get_original_map(self) -> ndarray:
-        habitat_maps.get_topdown_map_from_sim
-        top_down_map = maps.get_top_down_map(
+        top_down_map = habitat_maps.get_topdown_map_from_sim(
             self._sim,
-            self._config.MAP_RESOLUTION,
-            self._meters_per_pixel,
+            map_resolution=self._map_resolution,
+            draw_border=self._config.DRAW_BORDER,
+            meters_per_pixel=self._meters_per_pixel,
         )
 
         self._fog_of_war_mask = None
@@ -275,12 +354,14 @@ class TopDownMapVLNCE(Measure):
 
         return top_down_map
 
-    def reset_metric(self, *args: Any, episode, **kwargs: Any):
+    def reset_metric(
+        self, *args: Any, episode: Episode, **kwargs: Any
+    ) -> None:
         self._scene_id = episode.scene_id.split("/")[-2]
         self._step_count = 0
         self._metric = None
         self._meters_per_pixel = habitat_maps.calculate_meters_per_pixel(
-            self._config.MAP_RESOLUTION, self._sim
+            self._map_resolution, self._sim
         )
         self._top_down_map = self.get_original_map()
         agent_position = self._sim.get_agent_state().position
@@ -302,7 +383,7 @@ class TopDownMapVLNCE(Measure):
                 fov=self._config.FOG_OF_WAR.FOV,
                 max_line_len=self._config.FOG_OF_WAR.VISIBILITY_DIST
                 / habitat_maps.calculate_meters_per_pixel(
-                    self._config.MAP_RESOLUTION, sim=self._sim
+                    self._map_resolution, sim=self._sim
                 ),
             )
 
@@ -322,7 +403,7 @@ class TopDownMapVLNCE(Measure):
             maps.draw_straight_shortest_path_points(
                 self._top_down_map,
                 self._sim,
-                self._config.MAP_RESOLUTION,
+                self._map_resolution,
                 shortest_path_points,
             )
 
@@ -331,7 +412,7 @@ class TopDownMapVLNCE(Measure):
                 self._top_down_map,
                 self._sim,
                 episode,
-                self._config.MAP_RESOLUTION,
+                self._map_resolution,
                 self._meters_per_pixel,
             )
 
@@ -359,7 +440,7 @@ class TopDownMapVLNCE(Measure):
         )
         self.update_metric()
 
-    def update_metric(self, *args: Any, **kwargs: Any):
+    def update_metric(self, *args: Any, **kwargs: Any) -> None:
         self._step_count += 1
         (
             house_map,
@@ -381,7 +462,7 @@ class TopDownMapVLNCE(Measure):
             "meters_per_px": self._meters_per_pixel,
         }
 
-    def get_polar_angle(self):
+    def get_polar_angle(self) -> float:
         agent_state = self._sim.get_agent_state()
         # quaternion is in x, y, z, w format
         ref_rotation = agent_state.rotation
@@ -394,7 +475,7 @@ class TopDownMapVLNCE(Measure):
         z_neg_z_flip = np.pi
         return np.array(phi) + z_neg_z_flip
 
-    def update_map(self, agent_position):
+    def update_map(self, agent_position: List[float]) -> None:
         a_x, a_y = habitat_maps.to_grid(
             agent_position[2],
             agent_position[0],
@@ -412,9 +493,7 @@ class TopDownMapVLNCE(Measure):
                 (a_y, a_x),
                 gradient_color,
                 thickness=int(
-                    self._config.MAP_RESOLUTION
-                    * 1.4
-                    / maps.MAP_THICKNESS_SCALAR
+                    self._map_resolution * 1.4 / maps.MAP_THICKNESS_SCALAR
                 ),
                 style="filled",
             )
@@ -428,7 +507,7 @@ class TopDownMapVLNCE(Measure):
                 self._config.FOG_OF_WAR.FOV,
                 max_line_len=self._config.FOG_OF_WAR.VISIBILITY_DIST
                 / habitat_maps.calculate_meters_per_pixel(
-                    self._config.MAP_RESOLUTION, sim=self._sim
+                    self._map_resolution, sim=self._sim
                 ),
             )
 
@@ -473,7 +552,7 @@ class TopDownMapVLNCE(Measure):
                     1.0
                     / 2.0
                     * np.round(
-                        self._config.MAP_RESOLUTION / maps.MAP_THICKNESS_SCALAR
+                        self._map_resolution / maps.MAP_THICKNESS_SCALAR
                     )
                 ),
             )

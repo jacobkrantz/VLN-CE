@@ -2,9 +2,12 @@
 
 [Project Website](https://jacobkrantz.github.io/vlnce/) — [VLN-CE Challenge](https://eval.ai/web/challenges/challenge-page/719) — [RxR-Habitat Challenge](https://ai.google.com/research/rxr/habitat)
 
-This repository is the official implementation of [Beyond the Nav-Graph: Vision-and-Language Navigation in Continuous Environments](https://arxiv.org/abs/2004.02857).
+Official implementations:
 
-Vision and Language Navigation in Continuous Environments (VLN-CE) is an instruction-guided navigation task with crowdsourced instructions, realistic environments, and unconstrained agent navigation. This repo is a launching point for interacting with the VLN-CE task and provides both baseline agents and training methods. Both the Room-to-Room (**R2R**) and the Room-Across-Room (**RxR**) datasets are supported. VLN-CE is implemented on top of the Habitat platform.
+- *Beyond the Nav-Graph: Vision-and-Language Navigation in Continuous Environments* ([paper](https://arxiv.org/abs/2004.02857))
+- *Waypoint Models for Instruction-guided Navigation in Continuous Environments* ([paper](https://arxiv.org/abs/2110.02207), [README](/vlnce_baselines/config/r2r_waypoint/README.md))
+
+Vision and Language Navigation in Continuous Environments (VLN-CE) is an instruction-guided navigation task with crowdsourced instructions, realistic environments, and unconstrained agent navigation. This repo is a launching point for interacting with the VLN-CE task and provides both baseline agents and training methods. Both the Room-to-Room (**R2R**) and the Room-Across-Room (**RxR**) datasets are supported. VLN-CE is implemented using the Habitat platform.
 
 <p align="center">
   <img width="775" height="360" src="./data/res/VLN_comparison.gif" alt="VLN-CE comparison to VLN">
@@ -49,14 +52,14 @@ python -m pip install -r requirements.txt
 
 #### Scenes: Matterport3D
 
-Matterport3D (MP3D) scene reconstructions are used. The official Matterport3D download script (`download_mp.py`) can be accessed by following the instructions on their [project webpage](https://niessner.github.io/Matterport/). The scene data can then be downloaded this way:
+Matterport3D (MP3D) scene reconstructions are used. The official Matterport3D download script (`download_mp.py`) can be accessed by following the instructions on their [project webpage](https://niessner.github.io/Matterport/). The scene data can then be downloaded:
 
 ```bash
 # requires running with python 2.7
 python download_mp.py --task habitat -o data/scene_datasets/mp3d/
 ```
 
-Extract this data such that it has the form `data/scene_datasets/mp3d/{scene}/{scene}.glb`. There should be 90 total scenes.
+Extract such that it has the form `data/scene_datasets/mp3d/{scene}/{scene}.glb`. There should be 90 scenes.
 
 #### Episodes: Room-to-Room (R2R)
 
@@ -114,6 +117,10 @@ The baseline models for RxR-Habitat use precomputed BERT instruction features wh
 
 ## RxR-Habitat Challenge (RxR Data)
 
+<p align="center">
+  <img width="573" height="360" src="/data/res/rxr_teaser.gif" alt="RxR Challenge Teaser GIF">
+</p>
+
 The RxR-Habitat Challenge uses the new Room-Across-Room ([RxR](https://ai.google.com/research/rxr/)) dataset which:
 
 - contains multilingual instructions (English, Hindi, Telugu),
@@ -164,7 +171,7 @@ For push-button replication of all VLN-CE experiments, see [here](vlnce_baseline
 
 ## Starter Code
 
-The `run.py` script is how training and evaluation is done for all models and all datasets:
+The `run.py` script controls training and evaluation for all models and datasets:
 
 ```bash
 python run.py \
@@ -206,7 +213,7 @@ The simulator and torch code do not need to run on the same device. For faster t
 
 ## License
 
-The VLN-CE codebase is [MIT licensed](LICENSE). The trained models and the task datasets are considered data derived from the mp3d scene dataset. Matterport3D based task datasets and trained models are distributed with [Matterport3D Terms of Use](http://kaldir.vc.in.tum.de/matterport/MP_TOS.pdf) and under [CC BY-NC-SA 3.0 US license](https://creativecommons.org/licenses/by-nc-sa/3.0/us/).
+The VLN-CE codebase is [MIT licensed](LICENSE). Trained models and task datasets are considered data derived from the mp3d scene dataset. Matterport3D based task datasets and trained models are distributed with [Matterport3D Terms of Use](http://kaldir.vc.in.tum.de/matterport/MP_TOS.pdf) and under [CC BY-NC-SA 3.0 US license](https://creativecommons.org/licenses/by-nc-sa/3.0/us/).
 
 ## Citing
 

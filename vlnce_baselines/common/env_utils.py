@@ -1,4 +1,3 @@
-import os
 import random
 from typing import List, Optional, Type, Union
 
@@ -6,27 +5,6 @@ import habitat
 from habitat import Config, Env, RLEnv, VectorEnv, make_dataset
 from habitat.core.dataset import ALL_SCENES_MASK
 from habitat_baselines.utils.env_utils import make_env_fn
-
-SLURM_JOBID = os.environ.get("SLURM_JOB_ID", None)
-
-
-def is_slurm_job() -> bool:
-    return SLURM_JOBID is not None
-
-
-def is_slurm_batch_job() -> bool:
-    r"""Heuristic to determine if a slurm job is a batch job or not. Batch jobs
-    will have a job name that is not a shell unless the user specifically set the job
-    name to that of a shell. Interactive jobs have a shell name as their job name.
-    """
-    return is_slurm_job() and os.environ.get("SLURM_JOB_NAME", None) not in (
-        None,
-        "bash",
-        "zsh",
-        "fish",
-        "tcsh",
-        "sh",
-    )
 
 
 def construct_envs(
@@ -36,7 +14,7 @@ def construct_envs(
     auto_reset_done: bool = True,
     episodes_allowed: Optional[List[str]] = None,
 ) -> VectorEnv:
-    r"""Create VectorEnv object with specified config and env class type.
+    """Create VectorEnv object with specified config and env class type.
     To allow better performance, dataset are split into small ones for
     each individual env, grouped by scenes.
     :param config: configs that contain num_environments as well as information
@@ -44,6 +22,7 @@ def construct_envs(
     :param env_class: class type of the envs to be created.
     :param workers_ignore_signals: Passed to :ref:`habitat.VectorEnv`'s constructor
     :param auto_reset_done: Whether or not to automatically reset the env on done
+
     :return: VectorEnv object created according to specification.
     """
 

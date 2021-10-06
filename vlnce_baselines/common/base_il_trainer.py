@@ -1,11 +1,11 @@
 import json
-import jsonlines
 import os
 import time
 import warnings
 from collections import defaultdict
-from typing import Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
+import jsonlines
 import torch
 import torch.nn.functional as F
 import tqdm
@@ -21,14 +21,12 @@ from habitat_baselines.common.obs_transformers import (
     get_active_obs_transforms,
 )
 from habitat_baselines.common.tensorboard_utils import TensorboardWriter
-from habitat_baselines.utils.common import batch_obs, generate_video
+from habitat_baselines.rl.ddppo.algo.ddp_utils import is_slurm_batch_job
+from habitat_baselines.utils.common import batch_obs
 
-from habitat_extensions.utils import observations_to_image
+from habitat_extensions.utils import generate_video, observations_to_image
 from vlnce_baselines.common.aux_losses import AuxLosses
-from vlnce_baselines.common.env_utils import (
-    construct_envs_auto_reset_false,
-    is_slurm_batch_job,
-)
+from vlnce_baselines.common.env_utils import construct_envs_auto_reset_false
 from vlnce_baselines.common.utils import extract_instruction_tokens
 
 with warnings.catch_warnings():
@@ -37,7 +35,8 @@ with warnings.catch_warnings():
 
 
 class BaseVLNCETrainer(BaseILTrainer):
-    r"""A base trainer for VLN-CE imitation learning."""
+    """A base trainer for VLN-CE imitation learning."""
+
     supported_tasks: List[str] = ["VLN-v0"]
 
     def __init__(self, config=None):
@@ -87,14 +86,39 @@ class BaseVLNCETrainer(BaseILTrainer):
         logger.info(f"Agent parameters: {params}. Trainable: {params_t}")
         logger.info("Finished setting up policy.")
 
-    def save_checkpoint(self, file_name) -> None:
-        r"""Save checkpoint with specified name.
+    def _get_spaces(
+        self, config: Config, envs: Optional[Any] = None
+    ) -> Tuple[Space]:
+        """Gets both the observation space and action space.
+
+        Args:
+            config (Config): The config specifies the observation transforms.
+            envs (Any, optional): An existing Environment. If None, an
+                environment is created using the config.
+
+        Returns:
+            observation space, action space
+        """
+        if envs is not None:
+            observation_space = envs.observation_spaces[0]
+            action_space = envs.action_spaces[0]
+
+        else:
+            env = get_env_class(self.config.ENV_NAME)(config=config)
+            observation_space = env.observation_space
+            action_space = env.action_space
+
+        self.obs_transforms = get_active_obs_transforms(self.config)
+        observation_space = apply_obs_transforms_obs_space(
+            observation_space, self.obs_transforms
+        )
+        return observation_space, action_space
+
+    def save_checkpoint(self, file_name: str) -> None:
+        """Save checkpoint with specified name.
 
         Args:
             file_name: file name for checkpoint
-
-        Returns:
-            None
         """
         checkpoint = {
             "state_dict": self.policy.state_dict(),
@@ -198,33 +222,27 @@ class BaseVLNCETrainer(BaseILTrainer):
         writer: TensorboardWriter,
         checkpoint_index: int = 0,
     ) -> None:
-        r"""Evaluates a single checkpoint.
+        """Evaluates a single checkpoint.
 
         Args:
             checkpoint_path: path of checkpoint
             writer: tensorboard writer object
             checkpoint_index: index of the current checkpoint
-
-        Returns:
-            None
         """
         logger.info(f"checkpoint_path: {checkpoint_path}")
 
+        config = self.config.clone()
         if self.config.EVAL.USE_CKPT_CONFIG:
-            config = self._setup_eval_config(
-                self.load_checkpoint(checkpoint_path, map_location="cpu")[
-                    "config"
-                ]
-            )
-        else:
-            config = self.config.clone()
+            ckpt = self.load_checkpoint(checkpoint_path, map_location="cpu")
+            config = self._setup_eval_config(ckpt)
+
+        split = config.EVAL.SPLIT
 
         config.defrost()
-        config.TASK_CONFIG.DATASET.SPLIT = config.EVAL.SPLIT
+        config.TASK_CONFIG.DATASET.SPLIT = split
         config.TASK_CONFIG.DATASET.ROLES = ["guide"]
         config.TASK_CONFIG.DATASET.LANGUAGES = config.EVAL.LANGUAGES
-        config.TASK_CONFIG.TASK.NDTW.SPLIT = config.EVAL.SPLIT
-        config.TASK_CONFIG.TASK.SDTW.SPLIT = config.EVAL.SPLIT
+        config.TASK_CONFIG.TASK.NDTW.SPLIT = split
         config.TASK_CONFIG.ENVIRONMENT.ITERATOR_OPTIONS.SHUFFLE = False
         config.TASK_CONFIG.ENVIRONMENT.ITERATOR_OPTIONS.MAX_SCENE_REPEAT_STEPS = (
             -1
@@ -233,35 +251,29 @@ class BaseVLNCETrainer(BaseILTrainer):
         config.use_pbar = not is_slurm_batch_job()
 
         if len(config.VIDEO_OPTION) > 0:
-            config.defrost()
             config.TASK_CONFIG.TASK.MEASUREMENTS.append("TOP_DOWN_MAP_VLNCE")
-            config.TASK_CONFIG.TASK.MEASUREMENTS.append("COLLISIONS")
 
         config.freeze()
 
         if config.EVAL.SAVE_RESULTS:
             fname = os.path.join(
                 config.RESULTS_DIR,
-                f"stats_ckpt_{checkpoint_index}_{config.TASK_CONFIG.DATASET.SPLIT}.json",
+                f"stats_ckpt_{checkpoint_index}_{split}.json",
             )
             if os.path.exists(fname):
-                print("skipping -- evaluation exists.")
+                logger.info("skipping -- evaluation exists.")
                 return
 
         envs = construct_envs_auto_reset_false(
             config, get_env_class(config.ENV_NAME)
         )
-
-        obs_transforms = get_active_obs_transforms(config)
-        observation_space = apply_obs_transforms_obs_space(
-            envs.observation_spaces[0], obs_transforms
-        )
+        observation_space, action_space = self._get_spaces(config, envs=envs)
 
         self._initialize_policy(
             config,
             load_from_ckpt=True,
             observation_space=observation_space,
-            action_space=envs.action_spaces[0],
+            action_space=action_space,
         )
         self.policy.eval()
 
@@ -270,7 +282,7 @@ class BaseVLNCETrainer(BaseILTrainer):
             observations, self.config.TASK_CONFIG.TASK.INSTRUCTION_SENSOR_UUID
         )
         batch = batch_obs(observations, self.device)
-        batch = apply_obs_transforms_batch(batch, obs_transforms)
+        batch = apply_obs_transforms_batch(batch, self.obs_transforms)
 
         rnn_states = torch.zeros(
             envs.num_envs,
@@ -291,14 +303,11 @@ class BaseVLNCETrainer(BaseILTrainer):
         if len(config.VIDEO_OPTION) > 0:
             os.makedirs(config.VIDEO_DIR, exist_ok=True)
 
-        if config.EVAL.EPISODE_COUNT == -1:
-            episodes_to_eval = sum(envs.number_of_episodes)
-        else:
-            episodes_to_eval = min(
-                config.EVAL.EPISODE_COUNT, sum(envs.number_of_episodes)
-            )
+        num_eps = sum(envs.number_of_episodes)
+        if config.EVAL.EPISODE_COUNT > -1:
+            num_eps = min(config.EVAL.EPISODE_COUNT, num_eps)
 
-        pbar = tqdm.tqdm(total=episodes_to_eval) if config.use_pbar else None
+        pbar = tqdm.tqdm(total=num_eps) if config.use_pbar else None
         log_str = (
             f"[Ckpt: {checkpoint_index}]"
             " [Episodes evaluated: {evaluated}/{total}]"
@@ -306,7 +315,7 @@ class BaseVLNCETrainer(BaseILTrainer):
         )
         start_time = time.time()
 
-        while envs.num_envs > 0 and len(stats_episodes) < episodes_to_eval:
+        while envs.num_envs > 0 and len(stats_episodes) < num_eps:
             current_episodes = envs.current_episodes()
 
             with torch.no_grad():
@@ -340,7 +349,8 @@ class BaseVLNCETrainer(BaseILTrainer):
                 if not dones[i]:
                     continue
 
-                stats_episodes[current_episodes[i].episode_id] = infos[i]
+                ep_id = current_episodes[i].episode_id
+                stats_episodes[ep_id] = infos[i]
                 observations[i] = envs.reset_at(i)[0]
                 prev_actions[i] = torch.zeros(1, dtype=torch.long)
 
@@ -350,7 +360,7 @@ class BaseVLNCETrainer(BaseILTrainer):
                     logger.info(
                         log_str.format(
                             evaluated=len(stats_episodes),
-                            total=episodes_to_eval,
+                            total=num_eps,
                             time=round(time.time() - start_time),
                         )
                     )
@@ -360,22 +370,12 @@ class BaseVLNCETrainer(BaseILTrainer):
                         video_option=config.VIDEO_OPTION,
                         video_dir=config.VIDEO_DIR,
                         images=rgb_frames[i],
-                        episode_id=current_episodes[i].episode_id,
+                        episode_id=ep_id,
                         checkpoint_idx=checkpoint_index,
-                        metrics={
-                            "spl": stats_episodes[
-                                current_episodes[i].episode_id
-                            ]["spl"]
-                        },
+                        metrics={"spl": stats_episodes[ep_id]["spl"]},
                         tb_writer=writer,
                     )
-
-                    del stats_episodes[current_episodes[i].episode_id][
-                        "top_down_map_vlnce"
-                    ]
-                    del stats_episodes[current_episodes[i].episode_id][
-                        "collisions"
-                    ]
+                    del stats_episodes[ep_id]["top_down_map_vlnce"]
                     rgb_frames[i] = []
 
             observations = extract_instruction_tokens(
@@ -383,7 +383,7 @@ class BaseVLNCETrainer(BaseILTrainer):
                 self.config.TASK_CONFIG.TASK.INSTRUCTION_SENSOR_UUID,
             )
             batch = batch_obs(observations, self.device)
-            batch = apply_obs_transforms_batch(batch, obs_transforms)
+            batch = apply_obs_transforms_batch(batch, self.obs_transforms)
 
             envs_to_pause = []
             next_episodes = envs.current_episodes()
@@ -415,29 +415,23 @@ class BaseVLNCETrainer(BaseILTrainer):
 
         aggregated_stats = {}
         num_episodes = len(stats_episodes)
-        for stat_key in next(iter(stats_episodes.values())).keys():
-            aggregated_stats[stat_key] = (
-                sum(v[stat_key] for v in stats_episodes.values())
-                / num_episodes
+        for k in next(iter(stats_episodes.values())).keys():
+            aggregated_stats[k] = (
+                sum(v[k] for v in stats_episodes.values()) / num_episodes
             )
 
-        split = config.TASK_CONFIG.DATASET.SPLIT
         if config.EVAL.SAVE_RESULTS:
-            fname = os.path.join(
-                config.RESULTS_DIR,
-                f"stats_ckpt_{checkpoint_index}_{split}.json",
-            )
             with open(fname, "w") as f:
                 json.dump(aggregated_stats, f, indent=4)
 
         logger.info(f"Episodes evaluated: {num_episodes}")
         checkpoint_num = checkpoint_index + 1
         for k, v in aggregated_stats.items():
-            logger.info(f"Average episode {k}: {v:.6f}")
+            logger.info(f"{k}: {v:.6f}")
             writer.add_scalar(f"eval_{split}_{k}", v, checkpoint_num)
 
     def inference(self) -> None:
-        r"""Runs inference on a single checkpoint, creating a path predictions file."""
+        """Runs inference on a checkpoint and saves a predictions file."""
 
         checkpoint_path = self.config.INFERENCE.CKPT_PATH
         logger.info(f"checkpoint_path: {checkpoint_path}")
@@ -471,16 +465,13 @@ class BaseVLNCETrainer(BaseILTrainer):
             config, get_env_class(config.ENV_NAME)
         )
 
-        obs_transforms = get_active_obs_transforms(config)
-        observation_space = apply_obs_transforms_obs_space(
-            envs.observation_spaces[0], obs_transforms
-        )
+        observation_space, action_space = self._get_spaces(config, envs=envs)
 
         self._initialize_policy(
             config,
             load_from_ckpt=True,
             observation_space=observation_space,
-            action_space=envs.action_spaces[0],
+            action_space=action_space,
         )
         self.policy.eval()
 
@@ -489,7 +480,7 @@ class BaseVLNCETrainer(BaseILTrainer):
             observations, self.config.TASK_CONFIG.TASK.INSTRUCTION_SENSOR_UUID
         )
         batch = batch_obs(observations, self.device)
-        batch = apply_obs_transforms_batch(batch, obs_transforms)
+        batch = apply_obs_transforms_batch(batch, self.obs_transforms)
 
         rnn_states = torch.zeros(
             envs.num_envs,
@@ -564,7 +555,7 @@ class BaseVLNCETrainer(BaseILTrainer):
                     self.config.TASK_CONFIG.TASK.INSTRUCTION_SENSOR_UUID,
                 )
                 batch = batch_obs(observations, self.device)
-                batch = apply_obs_transforms_batch(batch, obs_transforms)
+                batch = apply_obs_transforms_batch(batch, self.obs_transforms)
 
                 envs_to_pause = []
                 next_episodes = envs.current_episodes()
@@ -613,7 +604,7 @@ class BaseVLNCETrainer(BaseILTrainer):
         else:  # use 'rxr' format for rxr-habitat leaderboard
             predictions_out = []
 
-            for k,v in episode_predictions.items():
+            for k, v in episode_predictions.items():
 
                 # save only positions that changed
                 path = [v[0]["position"]]

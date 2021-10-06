@@ -4,11 +4,13 @@ import json
 import torch
 import torch.nn as nn
 from habitat import Config
+from habitat.core.simulator import Observations
+from torch import Tensor
 
 
 class InstructionEncoder(nn.Module):
-    def __init__(self, config: Config):
-        r"""An encoder that uses RNN to encode an instruction. Returns
+    def __init__(self, config: Config) -> None:
+        """An encoder that uses RNN to encode an instruction. Returns
         the final hidden state after processing the instruction sequence.
 
         Args:
@@ -16,7 +18,7 @@ class InstructionEncoder(nn.Module):
                 embedding_size: The dimension of each embedding vector
                 hidden_size: The hidden (output) size
                 rnn_type: The RNN cell type.  Must be GRU or LSTM
-                final_state_only: Whether or not to return just the final state
+                final_state_only: If True, return just the final state
         """
         super().__init__()
 
@@ -46,7 +48,7 @@ class InstructionEncoder(nn.Module):
     def output_size(self):
         return self.config.hidden_size * (1 + int(self.config.bidirectional))
 
-    def _load_embeddings(self):
+    def _load_embeddings(self) -> Tensor:
         """Loads word embeddings from a pretrained embeddings file.
         PAD: index 0. [0.0, ... 0.0]
         UNK: index 1. mean of all R2R word embeddings: [mean_0, ..., mean_n]
@@ -58,7 +60,7 @@ class InstructionEncoder(nn.Module):
             embeddings = torch.tensor(json.load(f))
         return embeddings
 
-    def forward(self, observations):
+    def forward(self, observations: Observations) -> Tensor:
         """
         Tensor sizes after computation:
             instruction: [batch_size x seq_length]

@@ -9,7 +9,7 @@ msgpack_numpy
 networkx
 numpy>=1.16.1
 pre-commit
-torch>=1.3.1
+torch>=1.6.0
 torchvision==0.2.2.post3
 tqdm>=4.0.0
 tensorflow==1.13.1

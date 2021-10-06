@@ -16,7 +16,7 @@
 # shellcheck disable=SC1091
 source /private/home/%u/.bashrc
 conda deactivate
-conda activate rxr-challenge
+conda activate vlnce
 
 module purge
 module load cuda/10.1

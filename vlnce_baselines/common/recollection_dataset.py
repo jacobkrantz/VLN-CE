@@ -106,7 +106,7 @@ class TeacherRecollectionDataset(torch.utils.data.IterableDataset):
         self._env_observations = None
 
     def collect_dataset(self):
-        r"""Uses the ground truth trajectories to create a teacher forcing
+        """Uses the ground truth trajectories to create a teacher forcing
         datset for a given split. Loads both guide and follower episodes.
         """
         trajectories = defaultdict(list)

@@ -134,14 +134,14 @@ dmypy.json
 # exclude data from source control by default
 data
 
-# Generated videos
-videos
-
-# database files
-*.lmdb
+# VSCode
+.vscode
 
 # logging
 .log
 
 # evaluation results
 stats_*.json
+
+# custom slurm utils
+sbatch_scripts

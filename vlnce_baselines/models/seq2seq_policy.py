@@ -10,12 +10,9 @@ from habitat_baselines.rl.models.rnn_state_encoder import (
 from habitat_baselines.rl.ppo.policy import Net
 
 from vlnce_baselines.common.aux_losses import AuxLosses
+from vlnce_baselines.models.encoders import resnet_encoders
 from vlnce_baselines.models.encoders.instruction_encoder import (
     InstructionEncoder,
-)
-from vlnce_baselines.models.encoders.resnet_encoders import (
-    TorchVisionResNet50,
-    VlnResnetDepthEncoder,
 )
 from vlnce_baselines.models.policy import ILPolicy
 
@@ -53,18 +50,14 @@ class Seq2SeqPolicy(ILPolicy):
 
 
 class Seq2SeqNet(Net):
-    r"""A baseline sequence to sequence network that concatenates instruction,
-    RGB, and depth encodings before decoding an action distribution with an RNN.
-
-    Modules:
-        Instruction encoder
-        Depth encoder
-        RGB encoder
-        RNN state encoder
+    """A baseline sequence to sequence network that performs single modality
+    encoding of the instruction, RGB, and depth observations. These encodings
+    are concatentated and fed to an RNN. Finally, a distribution over discrete
+    actions (FWD, L, R, STOP) is produced.
     """
 
     def __init__(
-        self, observation_space: Space, model_config: Config, num_actions
+        self, observation_space: Space, model_config: Config, num_actions: int
     ):
         super().__init__()
         self.model_config = model_config
@@ -75,28 +68,29 @@ class Seq2SeqNet(Net):
         )
 
         # Init the depth encoder
-        assert model_config.DEPTH_ENCODER.cnn_type in [
-            "VlnResnetDepthEncoder"
-        ], "DEPTH_ENCODER.cnn_type must be VlnResnetDepthEncoder"
-        self.depth_encoder = VlnResnetDepthEncoder(
+        assert model_config.DEPTH_ENCODER.cnn_type in ["VlnResnetDepthEncoder"]
+        self.depth_encoder = getattr(
+            resnet_encoders, model_config.DEPTH_ENCODER.cnn_type
+        )(
             observation_space,
             output_size=model_config.DEPTH_ENCODER.output_size,
             checkpoint=model_config.DEPTH_ENCODER.ddppo_checkpoint,
             backbone=model_config.DEPTH_ENCODER.backbone,
+            trainable=model_config.DEPTH_ENCODER.trainable,
         )
 
         # Init the RGB visual encoder
         assert model_config.RGB_ENCODER.cnn_type in [
-            "TorchVisionResNet50"
-        ], "RGB_ENCODER.cnn_type must be TorchVisionResNet50"
-
-        device = (
-            torch.device("cuda", model_config.TORCH_GPU_ID)
-            if torch.cuda.is_available()
-            else torch.device("cpu")
-        )
-        self.rgb_encoder = TorchVisionResNet50(
-            observation_space, model_config.RGB_ENCODER.output_size, device
+            "TorchVisionResNet18",
+            "TorchVisionResNet50",
+        ]
+        self.rgb_encoder = getattr(
+            resnet_encoders, model_config.RGB_ENCODER.cnn_type
+        )(
+            model_config.RGB_ENCODER.output_size,
+            normalize_visual_inputs=model_config.normalize_rgb,
+            trainable=model_config.RGB_ENCODER.trainable,
+            spatial_output=False,
         )
 
         if model_config.SEQ2SEQ.use_prev_action:
@@ -146,11 +140,6 @@ class Seq2SeqNet(Net):
         nn.init.constant_(self.progress_monitor.bias, 0)
 
     def forward(self, observations, rnn_states, prev_actions, masks):
-        r"""
-        instruction_embedding: [batch_size x INSTRUCTION_ENCODER.output_size]
-        depth_embedding: [batch_size x DEPTH_ENCODER.output_size]
-        rgb_embedding: [batch_size x RGB_ENCODER.output_size]
-        """
         instruction_embedding = self.instruction_encoder(observations)
         depth_embedding = self.depth_encoder(observations)
         rgb_embedding = self.rgb_encoder(observations)

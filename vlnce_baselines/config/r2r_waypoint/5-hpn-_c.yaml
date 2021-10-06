@@ -1,0 +1,38 @@
+BASE_TASK_CONFIG_PATH: habitat_extensions/config/vlnce_waypoint_task.yaml
+TRAINER_NAME: ddppo-waypoint
+ENV_NAME: VLNCEWaypointEnv
+SIMULATOR_GPU_IDS: [0]
+TORCH_GPU_ID: 0
+NUM_ENVIRONMENTS: 4
+TENSORBOARD_DIR: data/tensorboard_dirs/hpn__c
+CHECKPOINT_FOLDER: data/checkpoints/hpn__c
+EVAL_CKPT_PATH_DIR: data/checkpoints/hpn__c
+
+RL:
+  POLICY:
+    OBS_TRANSFORMS:
+      ENABLED_TRANSFORMS: [ObsStack]
+
+  PPO:
+    pano_entropy_coef: 1.5
+    offset_entropy_coef: 1.0
+
+MODEL:
+  policy_name: WaypointPolicy
+
+  WAYPOINT:
+    predict_distance: False
+    min_offset_var: 0.00030625  # stddev of 1 degree
+    max_offset_var: 0.06853892  # stddev of (range / 2)
+    offset_temperature: 4.0
+
+  INSTRUCTION_ENCODER:
+    bidirectional: True
+    final_state_only: False
+
+  RGB_ENCODER:
+    cnn_type: TorchVisionResNet18
+    output_size: 128
+
+  STATE_ENCODER:
+    hidden_size: 256

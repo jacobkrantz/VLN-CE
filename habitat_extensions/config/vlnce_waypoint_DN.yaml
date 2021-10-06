@@ -1,0 +1,17 @@
+# uses a discrete navigator (DN) for zero-shot evaluation of waypoint models.
+
+ENV_NAME: VLNCEWaypointEnvDiscretized
+TASK_CONFIG:
+  ENVIRONMENT:
+    MAX_EPISODE_STEPS: 500
+  TASK:
+    POSSIBLE_ACTIONS: [STOP, MOVE_FORWARD, TURN_LEFT, TURN_RIGHT]
+    MEASUREMENTS: [
+      DISTANCE_TO_GOAL,
+      SUCCESS,
+      SPL,
+      NDTW,
+      PATH_LENGTH,
+      ORACLE_SUCCESS,
+      STEPS_TAKEN,
+    ]

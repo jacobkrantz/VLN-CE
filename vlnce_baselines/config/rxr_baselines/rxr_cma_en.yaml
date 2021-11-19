@@ -20,8 +20,9 @@ INFERENCE:
 EVAL:
   USE_CKPT_CONFIG: False
   SPLIT: val_unseen
+  LANGUAGES: [en-US, en-IN]
   EPISODE_COUNT: -1
-  SAMPLE: False
+  SAMPLE: True
 
 RL:
   POLICY:

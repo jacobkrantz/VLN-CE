@@ -86,6 +86,10 @@ class VLNCEDatasetV1(Dataset):
         )
 
         for episode in deserialized["episodes"]:
+            # cast integer IDs to strings
+            episode["episode_id"] = str(episode["episode_id"])
+            episode["trajectory_id"] = str(episode["trajectory_id"])
+
             episode = VLNExtendedEpisode(**episode)
 
             if scenes_dir is not None:

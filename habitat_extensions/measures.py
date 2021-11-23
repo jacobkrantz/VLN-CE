@@ -268,7 +268,7 @@ class NDTW(Measure):
 
     def reset_metric(self, *args: Any, episode, **kwargs: Any):
         self.locations = []
-        self.gt_locations = self.gt_json[str(episode.episode_id)]["locations"]
+        self.gt_locations = self.gt_json[episode.episode_id]["locations"]
         self.update_metric()
 
     def update_metric(self, *args: Any, **kwargs: Any):

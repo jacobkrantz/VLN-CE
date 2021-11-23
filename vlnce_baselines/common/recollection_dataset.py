@@ -74,7 +74,7 @@ class TeacherRecollectionDataset(torch.utils.data.IterableDataset):
             self.config.TASK_CONFIG.TASK.INSTRUCTION_SENSOR_UUID,
         )
         for i, ep in enumerate(self.envs.current_episodes()):
-            path_step = self.trajectories[str(ep.episode_id)][0]
+            path_step = self.trajectories[ep.episode_id][0]
             self._env_observations[i].append(
                 (
                     observations[i],
@@ -181,7 +181,7 @@ class TeacherRecollectionDataset(torch.utils.data.IterableDataset):
 
             # get the next action for each env
             actions = [
-                self.trajectories[str(ep.episode_id)][self.env_step[i]][1]
+                self.trajectories[ep.episode_id][self.env_step[i]][1]
                 for i, ep in enumerate(current_episodes)
             ]
 
@@ -198,7 +198,7 @@ class TeacherRecollectionDataset(torch.utils.data.IterableDataset):
                 self.env_step[i] += 1
                 if dones[i]:
                     assert len(self._env_observations[i]) == len(
-                        self.trajectories[str(prev_eps[i].episode_id)]
+                        self.trajectories[prev_eps[i].episode_id]
                     ), "Collected episode does not match the step count of trajectory"
                     self._preload.append(
                         (
@@ -210,9 +210,9 @@ class TeacherRecollectionDataset(torch.utils.data.IterableDataset):
                     self._env_observations[i] = []
                     self.env_step[i] = 0
 
-                path_step = self.trajectories[
-                    str(current_episodes[i].episode_id)
-                ][self.env_step[i]]
+                path_step = self.trajectories[current_episodes[i].episode_id][
+                    self.env_step[i]
+                ]
                 self._env_observations[i].append(
                     (
                         observations[i],

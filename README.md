@@ -63,20 +63,20 @@ Extract such that it has the form `data/scene_datasets/mp3d/{scene}/{scene}.glb`
 
 #### Episodes: Room-to-Room (R2R)
 
-The R2R_VLNCE dataset is a port of the Room-to-Room (R2R) dataset created by [Anderson et al](http://openaccess.thecvf.com/content_cvpr_2018/papers/Anderson_Vision-and-Language_Navigation_Interpreting_CVPR_2018_paper.pdf) for use with the [Matterport3DSimulator](https://github.com/peteanderson80/Matterport3DSimulator) (MP3D-Sim). For details on the porting process from MP3D-Sim to the continuous reconstructions used in Habitat, please see our [paper](https://arxiv.org/abs/2004.02857). We provide two versions of the dataset, `R2R_VLNCE_v1-2` and `R2R_VLNCE_v1-2_preprocessed`. `R2R_VLNCE_v1-2` contains the `train`, `val_seen`, `val_unseen`, and `test` splits. `R2R_VLNCE_v1-2_preprocessed` runs with our models out of the box. It additionally includes instruction tokens mapped to GloVe embeddings, ground truth trajectories, and a data augmentation split (`envdrop`) that is ported from [R2R-EnvDrop](https://github.com/airsplay/R2R-EnvDrop). The `test` split does not contain episode goals or ground truth paths. For more details on the dataset contents and format, see our [project page](https://jacobkrantz.github.io/vlnce/data).
+The R2R_VLNCE dataset is a port of the Room-to-Room (R2R) dataset created by [Anderson et al](http://openaccess.thecvf.com/content_cvpr_2018/papers/Anderson_Vision-and-Language_Navigation_Interpreting_CVPR_2018_paper.pdf) for use with the [Matterport3DSimulator](https://github.com/peteanderson80/Matterport3DSimulator) (MP3D-Sim). For details on porting to 3D reconstructions, please see our [paper](https://arxiv.org/abs/2004.02857). `R2R_VLNCE_v1-3` is a minimal version of the dataset and `R2R_VLNCE_v1-3_preprocessed` runs baseline models out of the box. See the [dataset page](https://jacobkrantz.github.io/vlnce/data) for format, contents, and a changelog. We encourage use of the most recent version (`v1-3`).
 
 | Dataset | Extract path | Size |
 |-------------- |---------------------------- |------- |
-| [R2R_VLNCE_v1-2.zip](https://drive.google.com/file/d/1YDNWsauKel0ht7cx15_d9QnM6rS4dKUV/view) | `data/datasets/R2R_VLNCE_v1-2` | 3 MB |
-| [R2R_VLNCE_v1-2_preprocessed.zip](https://drive.google.com/file/d/18sS9c2aRu2EAL4c7FyG29LDAm2pHzeqQ/view) | `data/datasets/R2R_VLNCE_v1-2_preprocessed` | 345 MB |
+| [R2R_VLNCE_v1-3.zip](https://drive.google.com/file/d/1qrdomxA5fuQ6n44NXzPAJe2dMdxatvma/view) | `data/datasets/R2R_VLNCE_v1-3` | 3 MB |
+| [R2R_VLNCE_v1-3_preprocessed.zip](https://drive.google.com/file/d/1kQ_at68wiK2vAmlWbjJ4EDrLtaM0nfkR/view) | `data/datasets/R2R_VLNCE_v1-3_preprocessed` | 250 MB |
 
-Downloading the dataset:
+Downloading via CLI:
 
 ```bash
-# R2R_VLNCE_v1-2
-gdown https://drive.google.com/uc?id=1YDNWsauKel0ht7cx15_d9QnM6rS4dKUV
-# R2R_VLNCE_v1-2_preprocessed
-gdown https://drive.google.com/uc?id=18sS9c2aRu2EAL4c7FyG29LDAm2pHzeqQ
+# R2R_VLNCE_v1-3
+gdown https://drive.google.com/uc?id=1qrdomxA5fuQ6n44NXzPAJe2dMdxatvma
+# R2R_VLNCE_v1-3_preprocessed
+gdown https://drive.google.com/uc?id=1kQ_at68wiK2vAmlWbjJ4EDrLtaM0nfkR
 ```
 
 ##### Encoder Weights

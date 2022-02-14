@@ -87,7 +87,13 @@ Baseline models encode depth observations using a ResNet pre-trained on PointGoa
 
 Download: [RxR_VLNCE_v0.zip](https://storage.googleapis.com/rxr-habitat/RxR_VLNCE_v0.zip)
 
-The [Room-Across-Room dataset](https://github.com/google-research-datasets/RxR) was ported to continuous environments for the [RxR-Habitat Challenge](https://ai.google.com/research/rxr/habitat) hosted at the CVPR 2021 [Embodied AI Workshop](https://embodied-ai.org/). The dataset has `train`, `val_seen`, `val_unseen`, and `test_challenge` splits with both Guide and Follower trajectories ported. The starter code expects files in this structure:
+About the [Room-Across-Room dataset](https://ai.google.com/research/rxr/) (RxR):
+
+- multilingual instructions (English, Hindi, Telugu)
+- an order of magnitude larger than existing datasets
+- varied paths to break a shortest-path-to-goal assumption
+
+RxR was ported to continuous environments originally for the [RxR-Habitat Challenge](https://ai.google.com/research/rxr/habitat). The dataset has `train`, `val_seen`, `val_unseen`, and `test_challenge` splits with both Guide and Follower trajectories ported. The starter code expects files in this structure:
 
 ```graphql
 data/datasets
@@ -115,19 +121,29 @@ data/datasets
 
 The baseline models for RxR-Habitat use precomputed BERT instruction features which can be downloaded from [here](https://github.com/google-research-datasets/RxR#downloading-bert-text-features) and saved to `data/datasets/RxR_VLNCE_v0/text_features/rxr_{split}/{instruction_id}_{language}_text_features.npz`.
 
-## RxR-Habitat Challenge (RxR Data)
+## RxR-Habitat Challenge
 
 <p align="center">
   <img width="573" height="360" src="/data/res/rxr_teaser.gif" alt="RxR Challenge Teaser GIF">
 </p>
 
-The RxR-Habitat Challenge uses the new Room-Across-Room ([RxR](https://ai.google.com/research/rxr/)) dataset which:
+**NEW: The 2022 RxR-Habitat Challenge is live!**
 
-- contains multilingual instructions (English, Hindi, Telugu),
-- is an order of magnitude larger than existing datasets, and
-- uses varied paths to break a shortest-path-to-goal assumption.
+- Challenge webpage: [ai.google.com/research/rxr/habitat](https://ai.google.com/research/rxr/habitat)
+- Workshop webpage: [embodied-ai.org](https://embodied-ai.org/)
 
-The challenge was hosted at the CVPR 2021 [Embodied AI Workshop](https://embodied-ai.org/). While the official challenge is over, the leaderboard remains open and we encourage submissions on this difficult task! For guidelines and access, please visit: [ai.google.com/research/rxr/habitat](https://ai.google.com/research/rxr/habitat).
+The RxR-Habitat is hosted at the CVPR 2022 [Embodied AI workshop](https://embodied-ai.org/) set for June 19th, 2022. The leaderboard opens for challenge submissions on March 1. For official guidelines, please visit: [ai.google.com/research/rxr/habitat](https://ai.google.com/research/rxr/habitat). We encourage submissions on this dificult task!
+
+The RxR-Habitat Challenge is hosted by Oregon State University, Google Research, and Facebook AI Research. This is the second year of the RxR-Habitat Challenge which first appeared at the 2021 CVPR [EAI workshop](https://embodied-ai.org/cvpr2021).
+
+### Timeline
+
+|               Event               |       Date      |
+|:---------------------------------:|:---------------:|
+|          Challenge Launch         |   Feb 14, 2022  |
+|          Leaderboard Open         |   Mar 1, 2022  |
+|         Leaderboard Closes        |   May 31, 2022  |
+| Workshop and Winners Announcement | Jun 19, 2022 |
 
 ### Generating Submissions
 
@@ -139,7 +155,38 @@ python run.py \
   --run-type inference
 ```
 
-If you use different models for different languages, you can merge their predictions with `scripts/merge_inference_predictions.py`. Submissions are only accepted that contain all episodes from all three languages in the `test-challenge` split. Starter code for this challenge was originally hosted in the `rxr-habitat-challenge` branch but is now under continual development in `master`.
+If you use different models for different languages, you can merge their predictions with `scripts/merge_inference_predictions.py`. Submissions are only accepted that contain all episodes from all three languages in the `test-challenge` split. Starter code for this challenge was originally hosted in the `rxr-habitat-challenge` branch but is now integrated in `master`.
+
+#### Required Task Configurations
+
+As specified in the [challenge webpage](https://ai.google.com/research/rxr/habitat), submissions to the official challenge must have an action space of 30 degree turn angles, a 0.25m step size, and look up / look down actions of 30 degrees. The agent is given a 480x640 RGBD observation space. An example task configuration is given [here](/habitat_extensions/config/rxr_vlnce_english_task.yaml) which loads the English portion of the dataset.
+
+The CMA baseline model ([config](/vlnce_baselines/config/rxr_baselines/rxr_cma_en.yaml)) is an example of a valid submission. Existing [waypoint models](/vlnce_baselines/config/r2r_waypoint) are not valid due to their panoramic observation space. Such models would need to be adapted to the challenge configuration.
+
+### Citing RxR-Habitat Challenge
+
+To cite the challenge, please cite the following papers ([RxR](https://arxiv.org/abs/2010.07954) and [VLN-CE](https://arxiv.org/abs/2004.02857)):
+
+```tex
+@inproceedings{ku2020room,
+  title={Room-Across-Room: Multilingual Vision-and-Language Navigation with Dense Spatiotemporal Grounding},
+  author={Ku, Alexander and Anderson, Peter and Patel, Roma and Ie, Eugene and Baldridge, Jason},
+  booktitle={Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)},
+  pages={4392--4412},
+  year={2020}
+}
+
+@inproceedings{krantz_vlnce_2020,
+  title={Beyond the Nav-Graph: Vision and Language Navigation in Continuous Environments},
+  author={Jacob Krantz and Erik Wijmans and Arjun Majundar and Dhruv Batra and Stefan Lee},
+  booktitle={European Conference on Computer Vision (ECCV)},
+  year={2020}
+ }
+```
+
+## Questions?
+
+Feel free to contact the challenge organizers with any questions, comments, or concerns. The corresponding organizer is Jacob Krantz (@jacobkrantz). You can also open an issue with `[RxR-Habitat]` in the title, which will also notify us.
 
 ## VLN-CE Challenge (R2R Data)
 

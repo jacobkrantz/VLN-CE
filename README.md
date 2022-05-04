@@ -163,6 +163,10 @@ As specified in the [challenge webpage](https://ai.google.com/research/rxr/habit
 
 The CMA baseline model ([config](/vlnce_baselines/config/rxr_baselines/rxr_cma_en.yaml)) is an example of a valid submission. Existing [waypoint models](/vlnce_baselines/config/r2r_waypoint) are not valid due to their panoramic observation space. Such models would need to be adapted to the challenge configuration.
 
+### Baseline Model
+
+The official baseline for the RxR-Habitat Challenge is a monolingual cross-modal attention (CMA) model, labeled `Monolingual CMA Baseline` on the leaderboard. Configuration files for re-training or evaluating this model can be found in [this folder](vlnce_baselines/config/rxr_baselines) under the name `rxr_cma_{en|hi|te}.yaml`. Weights for the pre-trained models: [[en](https://drive.google.com/file/d/1wllkdat_wJZcFY0AyBoRlajiE2as2m6O/view?usp=sharing) [hi](https://drive.google.com/file/d/1GN6WbggQDTsYPsheRQFxE21Dr4UcIcab/view?usp=sharing) [te](https://drive.google.com/file/d/1B0v2QJL8gMUr-DlwAb-xVPzdN4coa7jD/view?usp=sharing)] (196MB each).
+
 ### Citing RxR-Habitat Challenge
 
 To cite the challenge, please cite the following papers ([RxR](https://arxiv.org/abs/2010.07954) and [VLN-CE](https://arxiv.org/abs/2004.02857)):

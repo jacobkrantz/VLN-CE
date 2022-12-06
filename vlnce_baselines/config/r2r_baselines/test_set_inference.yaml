@@ -9,6 +9,7 @@ INFERENCE:
   SAMPLE: False
   CKPT_PATH: data/checkpoints/CMA_PM_DA_Aug.pth
   PREDICTIONS_FILE: predictions.json
+  FORMAT: r2r
 
 MODEL:
   policy_name: CMAPolicy

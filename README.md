@@ -127,23 +127,23 @@ The baseline models for RxR-Habitat use precomputed BERT instruction features wh
   <img width="573" height="360" src="/data/res/rxr_teaser.gif" alt="RxR Challenge Teaser GIF">
 </p>
 
-**NEW: The 2022 RxR-Habitat Challenge is live!**
+**NEW: The 2023 RxR-Habitat Challenge is live!**
 
 - Challenge webpage: [ai.google.com/research/rxr/habitat](https://ai.google.com/research/rxr/habitat)
 - Workshop webpage: [embodied-ai.org](https://embodied-ai.org/)
 
-The RxR-Habitat is hosted at the CVPR 2022 [Embodied AI workshop](https://embodied-ai.org/) set for June 19th, 2022. The leaderboard opens for challenge submissions on March 1. For official guidelines, please visit: [ai.google.com/research/rxr/habitat](https://ai.google.com/research/rxr/habitat). We encourage submissions on this dificult task!
+The RxR-Habitat is hosted at the CVPR 2023 [Embodied AI workshop](https://embodied-ai.org/) set for June 19th, 2023. The leaderboard opens for challenge submissions on March 1. For official guidelines, please visit: [ai.google.com/research/rxr/habitat](https://ai.google.com/research/rxr/habitat). We encourage submissions on this dificult task!
 
-The RxR-Habitat Challenge is hosted by Oregon State University, Google Research, and Facebook AI Research. This is the second year of the RxR-Habitat Challenge which first appeared at the 2021 CVPR [EAI workshop](https://embodied-ai.org/cvpr2021).
+The RxR-Habitat Challenge is hosted by Oregon State University, Google Research, and Meta AI. This is the third year of the RxR-Habitat Challenge which previously appeared at the 2021 and 2022 CVPR [EAI workshop](https://embodied-ai.org/cvpr2021).
 
 ### Timeline
 
 |               Event               |       Date      |
 |:---------------------------------:|:---------------:|
-|          Challenge Launch         |   Feb 14, 2022  |
-|          Leaderboard Open         |   Mar 1, 2022  |
-|         Leaderboard Closes        |   May 31, 2022  |
-| Workshop and Winners Announcement | Jun 19, 2022 |
+|          Challenge Launch         |   Mar 17, 2023  |
+|          Leaderboard Open         |   Mar 20, 2023  |
+|         Leaderboard Closes        |   May 15, 2023  |
+| Workshop and Winners Announcement |   Jun 19, 2023  |
 
 ### Generating Submissions
 

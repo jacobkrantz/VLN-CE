@@ -36,3 +36,21 @@ gdown https://drive.google.com/uc?id=1xIxh5eUkjGzSL_3AwBqDQlNXjkFrpcg4
 # Seq2Seq_DA (135MB)
 gdown https://drive.google.com/uc?id=14y7dXkAEwB_q81cDCow8JNKD2aAAPxbW
 ```
+
+
+## Experimental
+
+A trainer based on the [Decision Transformer](https://arxiv.org/abs/2106.01345) has been added.
+
+The results are underwhelming (below the best Seq2Seq) but it constitutes a good starting point for
+anybody wanting to test Transformer in VLN-CE.
+
+Pretrained models with corresponding training file under :
+
+
+[Decision Transformer Agent](https://drive.google.com/file/d/1-E1l5g7DM36m3HYx8b4b4CNBC8d-OS83/view?usp=sharing)
+
+[Enhanced Decision Transformer Agent](https://drive.google.com/file/d/1b2hpkHpiZIc2CBsaLzZWCa7qurfKDDsu/view?usp=sharing)
+
+[Full Decision Transformer Agent](https://drive.google.com/file/d/1rS2_yo9_z35zzaHW4CtByorZ-jpDpht_/view?usp=sharing)
+

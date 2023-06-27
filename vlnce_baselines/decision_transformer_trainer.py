@@ -660,7 +660,6 @@ class DecisionTransformerTrainer(BaseVLNCETrainer):
                     self.rgb_features = self.rgb_features.set_(torch.zeros((1,), device="cpu"))
                     self.depth_features = self.depth_features.set_(torch.zeros((1,), device="cpu"))
 
-                self._normalize_depth(batch)
                 rgb_encoder(batch)
                 depth_encoder(batch)
                 for i in range(envs.num_envs):

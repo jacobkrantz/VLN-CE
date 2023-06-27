@@ -5,7 +5,7 @@ import warnings
 import lmdb
 import msgpack_numpy
 import numpy as np
-from vlnce_baselines.common.base_il_trainer import BaseILTrainer
+from vlnce_baselines.common.base_il_trainer import BaseVLNCETrainer
 from vlnce_baselines.common.env_utils import construct_envs
 
 from torch import Tensor
@@ -198,7 +198,7 @@ class IWTrajectoryDataset(torch.utils.data.IterableDataset):
 
 
 @baseline_registry.register_trainer(name="decision_transformer")
-class DecisionTransformerTrainer(BaseILTrainer):
+class DecisionTransformerTrainer(BaseVLNCETrainer):
     def __init__(self, config=None):
         self.lmdb_features_dir = config.IL.DAGGER.lmdb_features_dir.format(
             split=config.TASK_CONFIG.DATASET.SPLIT

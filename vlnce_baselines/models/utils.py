@@ -4,9 +4,10 @@ from typing import Any, Optional, Union
 import numpy as np
 import torch
 import torch.nn as nn
-from torch import Size, Tensor
+from torch import Size, Tensor, nn as nn
 from torch.distributions import constraints
 from torch.distributions.normal import Normal
+from torch.nn import functional as F
 
 
 class TemperatureTanh(nn.Module):
@@ -315,3 +316,96 @@ def batched_index_select(
     expanse[dim] = -1
     index = index.view(views).expand(expanse)
     return torch.gather(x, dim, index).squeeze(dim)
+
+
+class PositionalEncoding(nn.Module):
+
+    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 200):
+        super().__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        position = torch.arange(max_len).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
+        pe = torch.zeros(max_len, 1, d_model)
+        pe[:, 0, 0::2] = torch.sin(position * div_term)
+        pe[:, 0, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe.permute(1,0,2))
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Args:
+            x: Tensor, shape [batch_size, seq_length, embedding_dim]
+        """
+        x = x + self.pe[:x.size(1)]
+        return self.dropout(x)
+
+
+class VanillaMultiHeadAttention(nn.Module):
+    """
+    A vanilla multi-head masked attention layer with a projection at the end.
+    Depending on the mask and entries provided, it can serve as
+    Causal Multihead Self Attention.
+    """
+
+    def __init__(self, config):
+        super().__init__()
+        assert config.n_embd % config.n_head == 0
+        # key, query, value projections for all heads, but in a batch
+        self.k_attn = nn.Linear(config.n_embd, config.n_embd)
+        self.q_attn = nn.Linear(config.n_embd, config.n_embd)
+        self.v_attn = nn.Linear(config.n_embd, config.n_embd)
+        # output projection
+        self.c_proj = nn.Linear(config.n_embd, config.n_embd)
+        # regularization
+        self.attn_dropout = nn.Dropout(config.attn_pdrop)
+        self.resid_dropout = nn.Dropout(config.resid_pdrop)
+
+        self.n_head = config.n_head
+        self.n_embd = config.n_embd
+
+    @staticmethod
+    def create_causal_mask(size: int, device="cpu"):
+        return (torch.tril(torch.ones(size, size)).view(1, 1, size, size) == 0).to(device)
+
+    @staticmethod
+    def create_padded_mask(t: Tensor):
+        return (t == 0.0).all(dim=-1).to(t.device)
+
+    def forward(self, q, k, v, mask=None):
+        q_B, q_T, q_C = q.size() # batch size, sequence length, embedding dimensionality (n_embd)
+        k_B, k_T, k_C = k.size()
+        v_B, v_T, v_C = v.size()
+
+        # all entries must have the same batch size. Keys and values must have the same sequence length
+        assert q_B == k_B
+        assert k_B == v_B
+        assert k_C == v_C
+
+        q = self.k_attn(q)
+        k = self.k_attn(k)
+        v = self.k_attn(v)
+
+        # calculate query, key, values for all heads in batch and move head forward to be the batch dim
+        q = q.view(q_B, q_T, self.n_head, q_C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
+        k = k.view(q_B, k_T, self.n_head, k_C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+        v = v.view(q_B, v_T, self.n_head, v_C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+
+        # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
+        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+        if mask is not None:
+            num_dim_att = len(att.shape)
+            num_dim_mask = len(mask.shape)
+            dim_to_add = num_dim_att - num_dim_mask
+            assert dim_to_add >= 0
+            if dim_to_add > 0:
+                for i in range(1, dim_to_add+1):
+                    mask = mask.unsqueeze(i)
+            att = att.masked_fill(mask, float('-inf'))
+        att = F.softmax(att, dim=-1)
+        att = self.attn_dropout(att)
+        y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
+        y = y.transpose(1, 2).contiguous().view(q_B, q_T, q_C) # re-assemble all head outputs side by side
+
+        # output projection
+        y = self.resid_dropout(self.c_proj(y))
+        return y

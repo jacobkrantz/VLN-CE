@@ -24,7 +24,10 @@ _C.VIDEO_OPTION = []  # options: "disk", "tensorboard"
 _C.VIDEO_DIR = "data/videos/debug"
 _C.TENSORBOARD_DIR = "data/tensorboard_dirs/debug"
 _C.RESULTS_DIR = "data/checkpoints/pretrained/evals"
-
+# Enables debugging for Pycharm. Default value is "forkserver".
+# https://youtrack.jetbrains.com/issue/PY-52273/Debugger-multiprocessing-hangs-pycharm-20213
+_C.MULTIPROCESSING = "forkserver"  # Set to 'spawn' when debugging with Pycharm,
+_C.use_pbar = True
 # ----------------------------------------------------------------------------
 # EVAL CONFIG
 # ----------------------------------------------------------------------------
@@ -37,7 +40,9 @@ _C.EVAL.SAVE_RESULTS = True
 _C.EVAL.EVAL_NONLEARNING = False
 _C.EVAL.NONLEARNING = CN()
 _C.EVAL.NONLEARNING.AGENT = "RandomAgent"
-
+_C.EVAL.VAL_SEEN_SMALL = "val_seen_80_ep" # only used when ran in train_complete mode
+_C.EVAL.VAL_SEEN = "val_seen" # only used when ran in train_complete mode
+_C.EVAL.VAL_UNSEEN = "val_unseen" # only used when ran in train_complete mode
 # ----------------------------------------------------------------------------
 # INFERENCE CONFIG
 # ----------------------------------------------------------------------------
@@ -57,10 +62,13 @@ _C.INFERENCE.FORMAT = "rxr"  # either 'rxr' or 'r2r'
 # IMITATION LEARNING CONFIG
 # ----------------------------------------------------------------------------
 _C.IL = CN()
+_C.IL.optimizer = "torch.optim.Adam"
+_C.IL.dataload_workers = 1
 _C.IL.lr = 2.5e-4
 _C.IL.batch_size = 5
 # number of network update rounds per iteration
 _C.IL.epochs = 4
+_C.IL.preload_dataloader_size = 100
 # if true, uses class-based inflection weighting
 _C.IL.use_iw = True
 # inflection coefficient for RxR training set GT trajectories (guide): 1.9
@@ -69,9 +77,12 @@ _C.IL.inflection_weight_coef = 3.2
 # load an already trained model for fine tuning
 _C.IL.load_from_ckpt = False
 _C.IL.ckpt_to_load = "data/checkpoints/ckpt.0.pth"
+_C.IL.continue_ckpt_naming = True
 # if True, loads the optimizer state, epoch, and step_id from the ckpt dict.
 _C.IL.is_requeue = False
-
+_C.IL.checkpoint_frequency = 1 # regulates the frequency (epochs % checkpoint_frequency == 0) to save the model.
+_C.IL.mean_loss_to_save_checkpoint = 0.40
+_C.IL.mean_loss_to_stop_training = 0.06
 # ----------------------------------------------------------------------------
 # IL: RECOLLECT TRAINER CONFIG
 # ----------------------------------------------------------------------------
@@ -116,6 +127,28 @@ _C.IL.DAGGER.lmdb_features_dir = (
     "data/trajectories_dirs/debug/trajectories.lmdb"
 )
 _C.IL.DAGGER.drop_existing_lmdb_features = True
+
+# ----------------------------------------------------------------------------
+# IL: DAGGER / DECISION TRANSFORMER CONFIG
+# ----------------------------------------------------------------------------
+
+_C.IL.DECISION_TRANSFORMER = CN()
+_C.IL.DECISION_TRANSFORMER.episode_horizon = 183
+_C.IL.DECISION_TRANSFORMER.use_perfect_episode_only_for_dagger = True
+_C.IL.DECISION_TRANSFORMER.use_oracle_actions = False
+_C.IL.DECISION_TRANSFORMER.reward_type = "POINT_GOAL_NAV_REWARD"  # POINT_GOAL_NAV_REWARD or SPARSE_REWARD
+_C.IL.DECISION_TRANSFORMER.sensor_uuid = "distance_left" # USed to calculate the Return To Go
+_C.IL.DECISION_TRANSFORMER.recompute_reward = True
+_C.IL.DECISION_TRANSFORMER.POINT_GOAL_NAV_REWARD = CN()
+_C.IL.DECISION_TRANSFORMER.POINT_GOAL_NAV_REWARD.step_penalty = -0.01
+_C.IL.DECISION_TRANSFORMER.POINT_GOAL_NAV_REWARD.success = 1.0
+_C.IL.DECISION_TRANSFORMER.SPARSE_REWARD = CN()
+_C.IL.DECISION_TRANSFORMER.POINT_GOAL_NAV_REWARD.step_penalty = -0.01
+_C.IL.DECISION_TRANSFORMER.POINT_GOAL_NAV_REWARD.success = 1.0
+_C.IL.DECISION_TRANSFORMER.NDTW_REWARD = CN()
+_C.IL.DECISION_TRANSFORMER.NDTW_REWARD.step_penalty = -0.01
+_C.IL.DECISION_TRANSFORMER.NDTW_REWARD.success = 1.0
+
 # ----------------------------------------------------------------------------
 # RL CONFIG
 # ----------------------------------------------------------------------------
@@ -284,6 +317,58 @@ _C.MODEL.WAYPOINT.max_offset_var = 0.0685  # stddev of (range / 2)
 _C.MODEL.WAYPOINT.discrete_offsets = 7
 _C.MODEL.WAYPOINT.offset_temperature = 1.0
 
+# ----------------------------------------------------------------------------
+# DECISION TRANSFORMER CONFIG
+# ----------------------------------------------------------------------------
+_C.MODEL.DECISION_TRANSFORMER = CN()
+_C.MODEL.DECISION_TRANSFORMER.use_re_zero = False # https://arxiv.org/abs/2003.04887
+_C.MODEL.DECISION_TRANSFORMER.hidden_dim = 128
+# the max in the training split.
+_C.MODEL.DECISION_TRANSFORMER.episode_horizon = _C.IL.DECISION_TRANSFORMER.episode_horizon
+_C.MODEL.DECISION_TRANSFORMER.reward_type = "POINT_GOAL_NAV_REWARD"  # POINT_GOAL_NAV_REWARD or SPARSE_REWARD
+_C.MODEL.DECISION_TRANSFORMER.return_to_go_inference = 1.0
+_C.MODEL.DECISION_TRANSFORMER.spatial_output = False # If set to false, depth and rgb feature are averaged
+_C.MODEL.DECISION_TRANSFORMER.model_type = None
+_C.MODEL.DECISION_TRANSFORMER.n_layer = 2
+_C.MODEL.DECISION_TRANSFORMER.n_head = 1
+_C.MODEL.DECISION_TRANSFORMER.n_embd = _C.MODEL.DECISION_TRANSFORMER.hidden_dim
+_C.MODEL.DECISION_TRANSFORMER.use_transformer_encoded_instruction = False
+# these options must be filled in externally
+_C.MODEL.DECISION_TRANSFORMER.vocab_size = 4
+_C.MODEL.DECISION_TRANSFORMER.step_size = 3 #We multiply by three because at each time step, we use [reward, action, state].
+_C.MODEL.DECISION_TRANSFORMER.block_size = _C.MODEL.DECISION_TRANSFORMER.episode_horizon *_C.MODEL.DECISION_TRANSFORMER.step_size
+_C.MODEL.DECISION_TRANSFORMER.allowed_models = ["DecisionTransformerNet",
+                                                "DecisionTransformerEnhancedNet",
+                                                "FullDecisionTransformerNet",
+                                                "FullDecisionTransformerSingleVisionStateNet"]
+_C.MODEL.DECISION_TRANSFORMER.allowed_rewards = ["point_nav_reward_to_go", "sparse_reward_to_go",
+                                                                 "point_nav_reward", "sparse_reward", "ndtw_reward",
+                                                                 "ndtw_reward_to_go"]
+_C.MODEL.DECISION_TRANSFORMER.exclude_past_action_for_prediction = True
+_C.MODEL.DECISION_TRANSFORMER.normalize_depth = False # Needs to be done during dataset creation
+_C.MODEL.DECISION_TRANSFORMER.normalize_rgb = False
+# dropout hyperparameters
+_C.MODEL.DECISION_TRANSFORMER.embd_pdrop = 0.1
+_C.MODEL.DECISION_TRANSFORMER.resid_pdrop = 0.1
+_C.MODEL.DECISION_TRANSFORMER.attn_pdrop = 0.1
+_C.MODEL.DECISION_TRANSFORMER.activation_action_drop = 0.3
+_C.MODEL.DECISION_TRANSFORMER.activation_instruction_drop = 0.0
+_C.MODEL.DECISION_TRANSFORMER.activation_rgb_drop = 0.0
+_C.MODEL.DECISION_TRANSFORMER.activation_depth_drop = 0.0
+_C.MODEL.DECISION_TRANSFORMER.ENCODER = CN()
+_C.MODEL.DECISION_TRANSFORMER.ENCODER.n_layer = 2
+_C.MODEL.DECISION_TRANSFORMER.ENCODER.n_head = 1
+_C.MODEL.DECISION_TRANSFORMER.ENCODER.use_sentence_encoding = True
+# Only for FullDecisionTransformerNet
+_C.MODEL.DECISION_TRANSFORMER.ENCODER.use_rgb_state_embeddings = True
+_C.MODEL.DECISION_TRANSFORMER.ENCODER.use_depth_state_embeddings = True
+_C.MODEL.DECISION_TRANSFORMER.ENCODER.use_output_rgb_instructions = True
+_C.MODEL.DECISION_TRANSFORMER.ENCODER.use_output_depth_instructions = True
+_C.MODEL.DECISION_TRANSFORMER.ENCODER.use_output_rgb = True
+_C.MODEL.DECISION_TRANSFORMER.ENCODER.use_output_depth = True
+# Only for FullDecisionTransformerSingleVisionStateNet
+_C.MODEL.DECISION_TRANSFORMER.ENCODER.use_output_state_instructions = True
+_C.MODEL.DECISION_TRANSFORMER.ENCODER.use_output_state = True
 
 def purge_keys(config: CN, keys: List[str]) -> None:
     for k in keys:

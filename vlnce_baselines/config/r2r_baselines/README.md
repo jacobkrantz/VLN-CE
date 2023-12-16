@@ -28,11 +28,11 @@ Experiments in this paper used the R2R data. Each experiment can be recreated fo
 
 ## Pretrained Models
 
-We provide pretrained models for our best Seq2Seq model [Seq2Seq_DA](https://drive.google.com/open?id=14y7dXkAEwB_q81cDCow8JNKD2aAAPxbW) and Cross-Modal Attention model [CMA_PM_DA_Aug](https://drive.google.com/open?id=1xIxh5eUkjGzSL_3AwBqDQlNXjkFrpcg4). These models are hosted on Google Drive and can be downloaded as such:
+We provide pretrained models for our best Seq2Seq model [Seq2Seq_DA](https://drive.google.com/file/d/12swcou9g5jwR31GbQU1wJ88E_8j--Qi5/view?usp=sharing) and Cross-Modal Attention model [CMA_PM_DA_Aug](https://drive.google.com/file/d/1o9PgBT38BH9pw_7V1QB3XUkY8auJqGKw/view?usp=sharing). These models are hosted on Google Drive and can be downloaded as such:
 
 ```bash
 # CMA_PM_DA_Aug (141MB)
-gdown https://drive.google.com/uc?id=1xIxh5eUkjGzSL_3AwBqDQlNXjkFrpcg4
+gdown https://drive.google.com/uc?id=1o9PgBT38BH9pw_7V1QB3XUkY8auJqGKw
 # Seq2Seq_DA (135MB)
-gdown https://drive.google.com/uc?id=14y7dXkAEwB_q81cDCow8JNKD2aAAPxbW
+gdown https://drive.google.com/uc?id=12swcou9g5jwR31GbQU1wJ88E_8j--Qi5
 ```

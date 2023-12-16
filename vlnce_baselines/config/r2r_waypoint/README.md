@@ -28,16 +28,16 @@ Models were trained via DDPPO using 64 GPUs. An example [slurm script](/sbatch_s
 
 ## Pretrained Models
 
-Pretrained weights for the best [WPN model](https://drive.google.com/file/d/1YS90f1x7KKcJNnT5wcvjbDEQ1NBrsse0/view?usp=sharing) (row 2) and the best [HPN model](https://drive.google.com/file/d/1nQwRln_Ta7PBK2I57nJIL3y-RUgrpT4x/view?usp=sharing) (row 5):
+Pretrained weights for the best [WPN model](https://drive.google.com/file/d/1XaJbkPYsVZGoM2pyJJ9umeuQ1u8kl9Fm/view?usp=sharing) (row 2) and the best [HPN model](https://drive.google.com/file/d/1W_q1cqP7g6Y6jHaXKKyFDLpaE3pdRJnI/view?usp=sharing) (row 5):
 
 ```bash
 # WPN.pth (97MB)
-gdown https://drive.google.com/uc?id=1YS90f1x7KKcJNnT5wcvjbDEQ1NBrsse0
+gdown https://drive.google.com/uc?id=1XaJbkPYsVZGoM2pyJJ9umeuQ1u8kl9Fm
 # HPN.pth (97MB)
-gdown https://drive.google.com/uc?id=1nQwRln_Ta7PBK2I57nJIL3y-RUgrpT4x
+gdown https://drive.google.com/uc?id=1W_q1cqP7g6Y6jHaXKKyFDLpaE3pdRJnI
 ```
 
-All Table 1 models, including best weights when paired with the discrete navigator (DN), can be downloaded here: [waypoint_weights.zip](https://drive.google.com/file/d/10rPA8n-lSyEV7j7isXf_al5RhuE3qmIN/view?usp=sharing) (788MB). Naming convention: `{row}-{WPN|HPN}-{c|d|_}-{c|d|_}-{discretenav|}.pth`.
+All Table 1 models, including best weights when paired with the discrete navigator (DN), can be downloaded here: [waypoint_weights.zip](https://drive.google.com/file/d/1pU5pJ8mpFv_TuITMIQugC52Q1ls6EjqU/view?usp=sharing) (788MB). Naming convention: `{row}-{WPN|HPN}-{c|d|_}-{c|d|_}-{discretenav|}.pth`.
 
 All model weights are subject to the [Matterport3D Terms-of-Use](http://kaldir.vc.in.tum.de/matterport/MP_TOS.pdf).
 

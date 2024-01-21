@@ -86,6 +86,41 @@ class VLNOracleProgressSensor(Sensor):
             [(distance_from_start - distance_to_target) / distance_from_start]
         )
 
+@registry.register_sensor
+class VLNOracleDistanceLeftSensor(Sensor):
+    """Distance left towards goal"""
+
+    cls_uuid: str = "distance_left"
+
+    def __init__(
+        self, sim: Simulator, config: Config, *args: Any, **kwargs: Any
+    ) -> None:
+        self._sim = sim
+        super().__init__(config=config)
+
+    def _get_uuid(self, *args: Any, **kwargs: Any) -> str:
+        return self.cls_uuid
+
+    def _get_sensor_type(self, *args: Any, **kwargs: Any) -> SensorTypes:
+        return SensorTypes.MEASUREMENT
+
+    def _get_observation_space(self, *args: Any, **kwargs: Any) -> Space:
+        return spaces.Box(low=0.0, high=1.0, shape=(1,), dtype=np.float)
+
+    def get_observation(self, *args: Any, episode, **kwargs: Any) -> float:
+        distance_to_target = self._sim.geodesic_distance(
+            self._sim.get_agent_state().position.tolist(),
+            episode.goals[0].position,
+        )
+
+        # just in case the agent ends up somewhere it shouldn't
+        if not np.isfinite(distance_to_target):
+            distance_to_target = 0.0
+
+
+        return np.array(
+            [distance_to_target]
+        )
 
 @registry.register_sensor
 class AngleFeaturesSensor(Sensor):

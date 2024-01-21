@@ -44,6 +44,13 @@ _C.TASK.SHORTEST_PATH_SENSOR.USE_ORIGINAL_FOLLOWER = False
 # ----------------------------------------------------------------------------
 _C.TASK.VLN_ORACLE_PROGRESS_SENSOR = CN()
 _C.TASK.VLN_ORACLE_PROGRESS_SENSOR.TYPE = "VLNOracleProgressSensor"
+
+# -----------------------------------------------------------------------------
+# VLN ORACLE DISTANCE LEFT SENSOR
+# ----------------------------------------------------------------------------
+_C.TASK.VLN_ORACLE_DISTANCE_LEFT_SENSOR = CN()
+_C.TASK.VLN_ORACLE_DISTANCE_LEFT_SENSOR.TYPE = "VLNOracleDistanceLeftSensor"
+
 # ----------------------------------------------------------------------------
 # PANO ANGLE FEATURE SENSOR
 # ----------------------------------------------------------------------------

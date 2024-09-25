@@ -18,7 +18,7 @@ Vision and Language Navigation in Continuous Environments (VLN-CE) is an instruc
 This project is developed with Python 3.6. If you are using [miniconda](https://docs.conda.io/en/latest/miniconda.html) or [anaconda](https://anaconda.org/), you can create an environment:
 
 ```bash
-conda create -n vlnce python3.6
+conda create -n vlnce python=3.6
 conda activate vlnce
 ```
 

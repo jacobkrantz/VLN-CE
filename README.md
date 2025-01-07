@@ -85,7 +85,7 @@ Baseline models encode depth observations using a ResNet pre-trained on PointGoa
 
 #### Episodes: Room-Across-Room (RxR)
 
-Download: [RxR_VLNCE_v0.zip](https://storage.googleapis.com/rxr-habitat/RxR_VLNCE_v0.zip)
+Download: [RxR_VLNCE_v0.zip](https://drive.google.com/file/d/145xzLjxBaNTbVgBfQ8e9EsBAV8W-SM0t/view)
 
 About the [Room-Across-Room dataset](https://ai.google.com/research/rxr/) (RxR):
 

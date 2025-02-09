@@ -93,6 +93,7 @@ def construct_envs(
         env_fn_args=tuple(zip(configs, env_classes)),
         auto_reset_done=auto_reset_done,
         workers_ignore_signals=workers_ignore_signals,
+        multiprocessing_start_method=config.MULTIPROCESSING
     )
     return envs
 

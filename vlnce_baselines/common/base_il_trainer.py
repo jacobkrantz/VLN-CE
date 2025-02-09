@@ -65,8 +65,8 @@ class BaseVLNCETrainer(BaseILTrainer):
             action_space=action_space,
         )
         self.policy.to(self.device)
-
-        self.optimizer = torch.optim.Adam(
+        # torch.optim.RAdam or torch.optim.Adam for example
+        self.optimizer = eval(config.IL.optimizer)(
             self.policy.parameters(), lr=self.config.IL.lr
         )
         if load_from_ckpt:
@@ -191,16 +191,21 @@ class BaseVLNCETrainer(BaseILTrainer):
     ):
         # pausing envs with no new episode
         if len(envs_to_pause) > 0:
+            # That can avoid nasty bugs when creating new Trainers...
+            envs_to_pause = sorted(envs_to_pause)
             state_index = list(range(envs.num_envs))
             for idx in reversed(envs_to_pause):
                 state_index.pop(idx)
                 envs.pause_at(idx)
 
-            # indexing along the batch dimensions
-            recurrent_hidden_states = recurrent_hidden_states[state_index]
-            not_done_masks = not_done_masks[state_index]
-            prev_actions = prev_actions[state_index]
-
+            # indexing along the batch dimensions => because we removed the environement to pause in
+            # the previous step from the state_index list, we just keep everything related to the active environments
+            if recurrent_hidden_states is not None:
+                recurrent_hidden_states = recurrent_hidden_states[state_index]
+            if not_done_masks is not None:
+                not_done_masks = not_done_masks[state_index]
+            if prev_actions is not None:
+                prev_actions = prev_actions[state_index]
             for k, v in batch.items():
                 batch[k] = v[state_index]
 
